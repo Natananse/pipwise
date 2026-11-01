@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { useTheme } from '../../lib/theme';
-
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const tab = (title: string, icon: keyof typeof Ionicons.glyphMap) => ({
   title,
   tabBarIcon: ({ color, size }: { color: string; size: number }) => (
@@ -12,18 +12,21 @@ const tab = (title: string, icon: keyof typeof Ionicons.glyphMap) => ({
 
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 8);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,   // selected tab (the blue you have now)
-        tabBarInactiveTintColor: '#C7CEDB',      // unselected tabs: light grey, easy to see
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: '#C7CEDB',
         tabBarStyle: {
-          backgroundColor: '#1E2A44',            // bar color: lighter navy than the screen
-          borderTopColor: '#34425F',             // thin line above the bar
-          height: 68,
+          backgroundColor: '#1E2A44',
+          borderTopColor: '#34425F',
+          height: 60 + bottomPad,
           paddingTop: 6,
-          paddingBottom: 10,
+          paddingBottom: bottomPad,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
       }}
