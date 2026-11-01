@@ -25,10 +25,12 @@ export default function Auth() {
   const submit = () => run(async () => {
     if (!email.trim() || password.length < 6) throw new Error('Enter an email and a password of at least 6 characters.');
     if (signUp) {
+      if (!supabase) throw new Error('Supabase is not configured. Add its URL and anon key to .env, then restart Expo.');
       const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
       if (error) throw error;
       if (!data.session) Alert.alert('Check your email', 'Confirm your account, then sign in.');
     } else {
+      if (!supabase) throw new Error('Supabase is not configured. Add its URL and anon key to .env, then restart Expo.');
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
     }
@@ -36,6 +38,7 @@ export default function Auth() {
 
   const google = () => run(async () => {
     const redirectTo = makeRedirectUri({ scheme: 'pipwise', path: 'auth-callback' });
+    if (!supabase) throw new Error('Supabase is not configured. Add its URL and anon key to .env, then restart Expo.');
     const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
     if (error || !data.url) throw error ?? new Error('Google sign-in is not available.');
     const res = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);

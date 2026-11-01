@@ -6,11 +6,12 @@
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.118.0",
-    "expo": "~58.0.21",
+    "expo": "~58.0.22",
     "expo-auth-session": "~58.0.16",
     "expo-constants": "~58.0.14",
     "expo-linking": "~58.0.15",
-    "expo-router": "~58.0.28",
+    "expo-font": "~58.0.11",
+    "expo-router": "~58.0.29",
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.7",
     "expo-web-browser": "~58.0.7",
@@ -24,6 +25,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
   "scripts": {

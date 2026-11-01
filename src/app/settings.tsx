@@ -13,7 +13,7 @@ export default function Settings() {
       <Body>Appearance</Body>
       {modes.map((m) => <Button key={m} label={`${m[0].toUpperCase()}${m.slice(1)}${mode === m ? ' (selected)' : ''}`} variant={mode === m ? 'solid' : 'outline'} onPress={() => setMode(m)} />)}
       <Card><Body>{DISCLAIMER}</Body></Card>
-      <Button label="Sign out" variant="outline" onPress={() => supabase.auth.signOut()} />
+      <Button label="Sign out" variant="outline" onPress={() => supabase?.auth.signOut()} />
     </Screen>
   );
 }

@@ -1,13 +1,13 @@
 import { Href, Slot, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SessionProvider, useSession } from '../lib/session';
 import { ThemeProvider } from '../lib/theme';
 
 // Order: disclaimer, onboarding, sign-in, then the app.
 function Guard() {
-  const { ready, session, disclaimerAccepted, onboarded } = useSession();
+  const { ready, session, disclaimerAccepted, onboarded, supabaseConfigured } = useSession();
   const top = useSegments()[0] as string | undefined;
   const router = useRouter();
   useEffect(() => {
@@ -20,6 +20,10 @@ function Guard() {
     if (to) router.replace(to as Href);
   }, [ready, session, disclaimerAccepted, onboarded, top]);
   if (!ready) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator /></View>;
+  if (!supabaseConfigured) return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 12 }}>
+    <Text style={{ fontSize: 24, fontWeight: '700' }}>Supabase setup needed</Text>
+    <Text>Add your Supabase project URL and anon key to a `.env` file using `.env.example`, then restart Expo.</Text>
+  </View>;
   return <Slot />;
 }
 

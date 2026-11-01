@@ -3,14 +3,14 @@ import type { Session } from '@supabase/supabase-js';
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
-import { supabase } from './supabase';
+import { supabase, supabaseConfigured } from './supabase';
 
 export type Plan = 'free' | 'pro' | 'elite';
 export const planRank: Record<Plan, number> = { free: 0, pro: 1, elite: 2 };
 const rcKey = Platform.OS === 'ios' ? process.env.EXPO_PUBLIC_RC_IOS_KEY : process.env.EXPO_PUBLIC_RC_ANDROID_KEY;
 
 type Ctx = {
-  ready: boolean; session: Session | null; plan: Plan;
+  ready: boolean; session: Session | null; plan: Plan; supabaseConfigured: boolean;
   disclaimerAccepted: boolean; onboarded: boolean;
   acceptDisclaimer: () => Promise<void>; finishOnboarding: () => Promise<void>; refreshPlan: () => Promise<void>;
 };
@@ -38,20 +38,22 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       setD((await AsyncStorage.getItem('disclaimer')) === '1');
       setO((await AsyncStorage.getItem('onboarded')) === '1');
-      const { data } = await supabase.auth.getSession();
-      setSession(data.session);
+      if (supabase) {
+        const { data } = await supabase.auth.getSession();
+        setSession(data.session);
+      }
       setReady(true);
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+    const subscription = supabase?.auth.onAuthStateChange(async (_e, s) => {
       setSession(s);
       if (rcKey) { try { s ? await Purchases.logIn(s.user.id) : await Purchases.logOut(); } catch {} }
       refreshPlan();
     });
-    return () => sub.subscription.unsubscribe();
+    return () => subscription?.data.subscription.unsubscribe();
   }, [refreshPlan]);
 
   const acceptDisclaimer = async () => { await AsyncStorage.setItem('disclaimer', '1'); setD(true); };
   const finishOnboarding = async () => { await AsyncStorage.setItem('onboarded', '1'); setO(true); };
 
-  return <SessionCtx.Provider value={{ ready, session, plan, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan }}>{children}</SessionCtx.Provider>;
+  return <SessionCtx.Provider value={{ ready, session, plan, supabaseConfigured, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan }}>{children}</SessionCtx.Provider>;
 }
