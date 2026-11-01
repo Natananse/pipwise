@@ -12,16 +12,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-backgrounds.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "io.pipwise.app"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/android-icon-backgrounds.png"
     },
     "plugins": [
       "expo-router",
