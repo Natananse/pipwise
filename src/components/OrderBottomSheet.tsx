@@ -1,7 +1,9 @@
 import React, { useState } from "react";
+import { View } from "react-native";
 import { Asset, money, price } from "../lib/market";
 import { Direction, feeRate } from "../lib/simulator";
 import { useWorkspace } from "../lib/workspace";
+import { useTheme } from "../lib/theme";
 import {
   AppButton,
   AppInput,
@@ -17,12 +19,15 @@ export function OrderBottomSheet({
   asset,
   direction,
   onClose,
+  embedded = false,
 }: {
   asset: Asset;
   direction: Direction | null;
   onClose: () => void;
+  embedded?: boolean;
 }) {
   const { wallet, trade } = useWorkspace();
+  const { colors } = useTheme();
   const [quantity, setQuantity] = useState("");
   const [sl, setSl] = useState("");
   const [tp, setTp] = useState("");
@@ -67,7 +72,8 @@ export function OrderBottomSheet({
     }
   };
   return (
-    <Sheet
+    <OrderSurface
+      embedded={embedded}
       visible={direction !== null}
       onClose={close}
       title={
@@ -78,7 +84,7 @@ export function OrderBottomSheet({
     >
       {success ? (
         <>
-          <Icon name="checkmark-circle" size={54} color="#087D51" />
+          <Icon name="checkmark-circle" size={54} color={colors.sheetUp} />
           <Label size={23} bold>
             Your practice is paying off.
           </Label>
@@ -198,6 +204,14 @@ export function OrderBottomSheet({
           )}
         </>
       )}
-    </Sheet>
+    </OrderSurface>
   );
+}
+
+/** Reuses the same order content inside an already-presented native sheet. */
+function OrderSurface({ embedded, visible, title, onClose, children }: {
+  embedded: boolean; visible: boolean; title: string; onClose: () => void; children: React.ReactNode;
+}) {
+  if (embedded) return visible ? <View style={{ gap: 16 }}><Label size={22} bold>{title}</Label>{children}</View> : null;
+  return <Sheet visible={visible} title={title} onClose={onClose}>{children}</Sheet>;
 }

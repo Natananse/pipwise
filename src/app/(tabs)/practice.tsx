@@ -1,19 +1,83 @@
+import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
-import { AppButton, AppInput, Badge, Chip, ConfirmationDialog, EmptyState, GlassCard, Icon, Label, Page, Row, tokens } from '../../components/design';
-import { TradingChart } from '../../components/TradingChart';
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BottomSheet } from '../../components/BottomSheet';
+import { ContentState } from '../../components/ContentState';
+import { GhostButton } from '../../components/GhostButton';
+import { MarketRow } from '../../components/MarketRow';
 import { OrderBottomSheet } from '../../components/OrderBottomSheet';
+import { PrimaryButton } from '../../components/PrimaryButton';
+import { TradingChart } from '../../components/TradingChart';
+import { AppInput, Chip, Icon, Label, PracticeLabel, Row, Sheet, WorkspaceHeader, ErrorState } from '../../components/design';
 import { Asset, assets, money, price } from '../../lib/market';
 import { Direction, pnl, summary } from '../../lib/simulator';
+import { fonts, ThemeSurface, useTheme } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
-import { useTheme } from '../../lib/theme';
-export default function Trade() {
-  const { wallet, favorites, toggle, close, t } = useWorkspace(); const { colors } = useTheme(); const width = useWindowDimensions().width; const wide = width > 1100; const [asset, setAsset] = useState(assets[0]); const [direction, setDirection] = useState<Direction | null>(null); const [search, setSearch] = useState(''); const [category, setCategory] = useState('All'); const [portfolio, setPortfolio] = useState('Open positions'); const [closing, setClosing] = useState<string | null>(null); const stats = summary(wallet);
+
+export default function Trade() { return <ThemeSurface tone="dark"><TradeWorkspace /></ThemeSurface>; }
+function TradeWorkspace() {
+  const { wallet, favorites, toggle, close, t, loaded, storageError } = useWorkspace();
+  const { colors } = useTheme(); const { width } = useWindowDimensions(); const insets = useSafeAreaInsets(); const wide = width > 1050;
+  const [asset, setAsset] = useState(assets[0]);
+  const [direction, setDirection] = useState<Direction | null>(null);
+  const [search, setSearch] = useState(''); const [category, setCategory] = useState('All');
+  const [portfolio, setPortfolio] = useState('Open positions'); const [closing, setClosing] = useState<string | null>(null);
+  const [preview, setPreview] = useState(false); const [showPortfolio, setShowPortfolio] = useState(false);
+  const stats = summary(wallet);
   const filtered = assets.filter(a => (category === 'All' || (category === 'Favorites' ? favorites.includes(a.symbol) : a.category === category)) && `${a.symbol} ${a.name}`.toLowerCase().includes(search.toLowerCase()));
-  const choose = (a: Asset) => { setAsset(a); };
-  return <Page title={t('Your trading workspace')} subtitle="A LITTLE PRACTICE. A WORLD OF POSSIBILITY."><View style={{ flexDirection: width > 700 ? 'row' : 'column', gap: 16 }}><GlassCard style={{ flex: 1.5, backgroundColor: tokens.navy }}><Row><Label color="#FFFFFF" size={12}>TOTAL VIRTUAL EQUITY</Label><Badge>DEMO</Badge></Row><Label size={40} bold color="#FFFFFF">{money(stats.equity)}</Label><Row><Label color="#00E676" size={12}>{stats.equity >= 10000 ? '+' : ''}{money(stats.equity - 10000)} ({((stats.equity / 10000 - 1) * 100).toFixed(2)}%)</Label><Label color="#FFFFFF" size={11}>Since you started</Label></Row></GlassCard><GlassCard style={{ flex: 1 }}><Row><Icon name="wallet-outline" /><Label muted size={11}>VIRTUAL WALLET</Label></Row><Label muted size={12}>{t('Available funds')}</Label><Label size={28} bold>{money(wallet.cash)}</Label><Label muted size={11}>Reserved in positions: {money(stats.reserved)}</Label></GlassCard><GlassCard style={{ flex: 1 }}><Row><Icon name="pulse-outline" /><Label muted size={11}>PERFORMANCE</Label></Row><Label muted size={12}>Unrealized P/L</Label><Label size={28} bold color={stats.unrealized < 0 ? tokens.red : tokens.green}>{money(stats.unrealized)}</Label><Label muted size={11}>{wallet.positions.length} open · Realized {money(stats.realized)}</Label></GlassCard></View>
-  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>{assets.slice(0, 5).map(a => <Pressable accessibilityRole="button" accessibilityState={{ selected: asset.symbol === a.symbol }} key={a.symbol} onPress={() => choose(a)} style={({ pressed }) => ({ padding: 17, minWidth: 170, gap: 8, borderRadius: 18, borderWidth: 1, borderColor: asset.symbol === a.symbol ? '#00B76A' : colors.border, backgroundColor: asset.symbol === a.symbol ? '#00E6760A' : colors.card, opacity: pressed ? 0.7 : 1 })}><Row><Label bold size={12}>{a.symbol}</Label><Label size={11} color={a.change < 0 ? tokens.red : tokens.green}>{a.change > 0 ? '+' : ''}{a.change}%</Label></Row><Label size={21} bold>{price(a)}</Label><Label muted size={10}>{a.name}</Label></Pressable>)}</ScrollView>
-  <View style={{ flexDirection: wide ? 'row' : 'column', alignItems: 'flex-start', gap: 20 }}><View style={{ flex: wide ? 2.3 : undefined, width: wide ? undefined : '100%', gap: 20 }}><GlassCard><Row style={{ flexWrap: 'wrap' }}><Row><View style={{ width: 44, height: 44, backgroundColor: '#E4FBEE', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}><Label bold size={23} color={tokens.navy}>{asset.mark}</Label></View><View><Label bold size={18}>{asset.symbol}</Label><Label muted size={11}>{asset.name} · Demo market</Label></View></Row><View style={{ alignItems: 'flex-end' }}><Label bold size={23}>{price(asset)}</Label><Label color={asset.change < 0 ? tokens.red : tokens.green} size={12}>{asset.change > 0 ? '+' : ''}{asset.change}% · Sample session</Label></View></Row><TradingChart key={asset.symbol} asset={asset} /><Row><View style={{ flex: 1 }}><AppButton label={`${t('Buy')} ${asset.symbol}`} icon="arrow-up" onPress={() => setDirection('buy')} /></View><View style={{ flex: 1 }}><AppButton label={`${t('Sell')} ${asset.symbol}`} variant="danger" icon="arrow-down" onPress={() => setDirection('sell')} /></View></Row></GlassCard>
-  <GlassCard><Row style={{ flexWrap: 'wrap' }}><Label size={18} bold>Your portfolio</Label><Row>{['Open positions', 'History'].map(v => <Chip label={v} key={v} selected={portfolio === v} onPress={() => setPortfolio(v)} />)}</Row></Row>{portfolio === 'Open positions' ? wallet.positions.length ? wallet.positions.map(p => <View key={p.id} style={{ borderTopWidth: 1, borderColor: colors.border, paddingTop: 16, gap: 10 }}><Row><View><Label bold>{p.symbol} <Label color={p.direction === 'buy' ? tokens.green : tokens.red} size={11}>{p.direction.toUpperCase()}</Label></Label><Label muted size={12}>{p.quantity} units @ {p.entry} · {money(p.entry * p.quantity)} reserved</Label></View><Label bold color={pnl(p) < 0 ? tokens.red : tokens.green}>{money(pnl(p))}</Label></Row><Row><Label muted size={11}>SL {p.stopLoss || '—'} · TP {p.takeProfit || '—'}</Label><AppButton compact variant="secondary" label="Close position" onPress={() => setClosing(p.id)} /></Row></View>) : <EmptyState title="Your first trade starts here" detail="Choose an asset, explore its chart, and open a virtual position. Your real money stays out of it." /> : wallet.history.length ? wallet.history.map(p => <Row key={p.id}><View><Label bold>{p.symbol} · {p.direction.toUpperCase()}</Label><Label muted size={11}>{p.quantity} units · {new Date(p.closed!).toLocaleDateString()}</Label></View><Label color={(p.pnl || 0) < 0 ? tokens.red : tokens.green}>{money(p.pnl || 0)}</Label></Row>) : <EmptyState title="A clean trading journal" detail="Closed positions appear here with realized profit or loss, including fees." />}</GlassCard></View>
-  <View style={{ flex: wide ? 1 : undefined, width: wide ? undefined : '100%', gap: 20 }}><GlassCard><Row><Label size={18} bold>{t('Markets')}</Label><Icon name="search-outline" /></Row><AppInput label="Find an asset" value={search} onChangeText={setSearch} placeholder="Search symbol or name" /><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>{['All', 'Favorites', 'Forex', 'Crypto', 'Metals', 'Commodities', 'Indices'].map(c => <Chip key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />)}</ScrollView>{filtered.length ? filtered.map(a => <Row key={a.symbol}><Pressable onPress={() => choose(a)} accessibilityRole="button" accessibilityLabel={`View ${a.symbol}`} style={{ flex: 1, paddingVertical: 9 }}><Row><View><Label bold size={13}>{a.symbol}</Label><Label muted size={10}>{a.name}</Label></View><View style={{ alignItems: 'flex-end' }}><Label bold size={12}>{price(a)}</Label><Label size={11} color={a.change < 0 ? tokens.red : tokens.green}>{a.change > 0 ? '+' : ''}{a.change}%</Label></View></Row></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Toggle favorite ${a.symbol}`} onPress={() => toggle('favorites', a.symbol)} style={{ padding: 12 }}><Icon name={favorites.includes(a.symbol) ? 'star' : 'star-outline'} size={17} color={favorites.includes(a.symbol) ? tokens.green : colors.sub} /></Pressable></Row>) : <EmptyState title="No matching assets" detail="Try another category or search term." />}</GlassCard><GlassCard style={{ backgroundColor: tokens.navy }}><Icon name="bulb-outline" color="#00E676" size={26} /><Label size={19} bold color="#FFFFFF">Small steps. Smarter trades.</Label><Label size={12} color="#FFFFFF">Before you enter, know your exit. Practice setting a stop loss and take profit on every trade.</Label><Label size={10} color="#00E676">THE PIPSWISE MINDSET</Label></GlassCard></View></View><OrderBottomSheet asset={asset} direction={direction} onClose={() => setDirection(null)} /><ConfirmationDialog visible={!!closing} title="Close virtual position?" detail="The position will close at the fixed simulated quote. Your reserved funds will return to your wallet, less the closing fee." onClose={() => setClosing(null)} onConfirm={() => { if (closing) close(closing); setClosing(null); }} /></Page>;
+  const choose = (a: Asset) => { setAsset(a); setPreview(true); };
+  const balance = money(stats.equity).split('.');
+  const gain = stats.equity - 10000;
+  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <StatusBar style="light" />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+      <View style={[styles.workspace, { flexDirection: wide ? 'row' : 'column', maxWidth: wide ? 1440 : undefined }]}>
+        <View style={[styles.hero, { flex: wide ? 1 : undefined }]}>
+          <WorkspaceHeader title={t('Trade')} subtitle="YOUR PRACTICE ACCOUNT" />
+          <View style={{ gap: 8, paddingTop: 16 }}>
+            <Label size={13} muted>Total virtual balance</Label>
+            <Label size={width < 360 ? 42 : 52} bold style={{ fontFamily: fonts.extraBold, letterSpacing: -2, lineHeight: 68 }}>{balance[0]}<Label size={width < 360 ? 42 : 52} color={colors.sub} style={{ fontFamily: fonts.extraBold }}>.{balance[1]}</Label></Label>
+            <Row style={{ justifyContent: 'flex-start' }}><Icon name={gain < 0 ? 'arrow-down' : 'arrow-up'} size={14} color={gain < 0 ? colors.down : colors.up} /><Label size={12} color={gain < 0 ? colors.down : colors.up}>{gain >= 0 ? '+' : ''}{money(gain)} ({((stats.equity / 10000 - 1) * 100).toFixed(2)}%)</Label><Label size={11} muted>all time</Label></Row>
+          </View>
+          <PrimaryButton label="New trade" icon="add" onPress={() => setPreview(true)} />
+          <View style={{ backgroundColor: colors.card, borderRadius: 24, padding: 24, gap: 24 }}>
+            <Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Label size={12} muted>Open P&L</Label><Row style={{ justifyContent: 'flex-start' }}><Icon name={stats.unrealized < 0 ? 'trending-down' : 'trending-up'} size={18} color={stats.unrealized < 0 ? colors.down : colors.up} /><Label size={22} bold color={stats.unrealized < 0 ? colors.down : colors.up}>{money(stats.unrealized)}</Label></Row></View>
+              <Pressable accessibilityRole="button" accessibilityLabel="View positions and trading history" onPress={() => setShowPortfolio(true)} style={({ pressed }) => ({ flex: 1, gap: 8, minHeight: 56, borderLeftWidth: 1, borderColor: colors.border, paddingLeft: 24, opacity: pressed ? 0.6 : 1 })}><Row><Label size={12} muted>Positions</Label><Icon name="arrow-forward" size={16} color={colors.sub} /></Row><Label size={22} bold>{wallet.positions.length.toString().padStart(2, '0')}</Label></Pressable>
+            </Row>
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
+            <Row><Label size={11} muted style={{ flex: 1 }}>{t('Available funds')}</Label><Label size={13}>{money(wallet.cash)}</Label></Row>
+            <Row><Label size={11} muted>Reserved / realized P&L</Label><Label size={11}>{money(stats.reserved)} / {money(stats.realized)}</Label></Row>
+          </View>
+          <GhostButton label="Portfolio & history" icon="layers-outline" onPress={() => setShowPortfolio(true)} />
+          <PracticeLabel />
+          {!!storageError && <ErrorState message={storageError} />}
+        </View>
+        <BottomSheet style={{ flex: wide ? 1.2 : 1, marginTop: wide ? 24 : 8, borderRadius: wide ? 32 : undefined, paddingBottom: wide ? 32 : 104 + Math.max(insets.bottom, 14) }}>
+          <Row><View><Label size={26} bold>{t('Markets')}</Label><Label size={12} muted>Find your next practice.</Label></View><Icon name="search-outline" color={colors.sheetSub} /></Row>
+          <AppInput label="Find an asset" value={search} onChangeText={setSearch} placeholder="Search symbol or name" />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{['All', 'Favorites', 'Forex', 'Crypto', 'Metals', 'Commodities', 'Indices'].map(c => <Chip key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />)}</ScrollView>
+          <View>{!loaded ? <ContentState kind="skeleton" tone="light" title="Loading markets" /> : filtered.length ? filtered.map(a => <MarketRow key={a.symbol} asset={a} selected={asset.symbol === a.symbol} favorite={favorites.includes(a.symbol)} onFavorite={() => toggle('favorites', a.symbol)} onPress={() => choose(a)} />) : <><ContentState kind="empty" tone="light" title="No matching markets" detail="Try another category or search term, or add a favorite to your list." /><GhostButton tone="light" label="Show all markets" onPress={() => { setSearch(''); setCategory('All'); }} /></>}</View>
+          <PracticeLabel />
+        </BottomSheet>
+      </View>
+    </ScrollView>
+    <Sheet visible={preview || direction !== null} onClose={() => { setPreview(false); setDirection(null); }} title={direction ? 'Virtual order' : asset.symbol}>
+      {direction ? <OrderBottomSheet key={`${asset.symbol}-${direction}`} embedded asset={asset} direction={direction} onClose={() => setDirection(null)} /> : <>
+      <Row><Label muted size={12}>{asset.name}</Label><Label size={24} bold>{price(asset)}</Label></Row>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{assets.map(a => <Chip key={a.symbol} label={a.symbol} selected={asset.symbol === a.symbol} onPress={() => setAsset(a)} />)}</ScrollView>
+      <TradingChart key={asset.symbol} asset={asset} />
+      <PrimaryButton label={`${t('Buy')} ${asset.symbol}`} icon="arrow-up" tone="light" haptic onPress={() => { setPreview(false); setDirection('buy'); }} />
+      <GhostButton label={`${t('Sell')} ${asset.symbol}`} icon="arrow-down" tone="light" intent="negative" haptic onPress={() => { setPreview(false); setDirection('sell'); }} />
+      <PracticeLabel />
+      </>}
+    </Sheet>
+    <Sheet visible={showPortfolio || !!closing} onClose={() => { setShowPortfolio(false); setClosing(null); }} title={closing ? 'Close virtual position?' : 'Your portfolio'}>
+      {closing ? <><Label muted>The position will close at the fixed simulated quote. Your reserved funds will return to your wallet, less the closing fee.</Label><PrimaryButton label="Confirm" tone="light" onPress={() => { close(closing); setClosing(null); }} /><GhostButton label="Cancel" tone="light" onPress={() => setClosing(null)} /></> : <>
+      <Row>{['Open positions', 'History'].map(v => <Chip key={v} label={v} selected={portfolio === v} onPress={() => setPortfolio(v)} />)}</Row>
+      {portfolio === 'Open positions' ? wallet.positions.length ? wallet.positions.map(p => <View key={p.id} style={{ paddingVertical: 16, gap: 16, borderBottomWidth: 1, borderColor: colors.sheetBorder }}><Row><View style={{ flex: 1 }}><Label bold>{p.symbol} · {p.direction.toUpperCase()}</Label><Label muted size={11}>{p.quantity} units @ {p.entry}</Label></View><Label bold color={pnl(p) < 0 ? colors.sheetDown : colors.sheetUp}>{pnl(p) < 0 ? '↘ ' : '↗ '}{money(pnl(p))}</Label></Row><Label muted size={11}>{money(p.entry * p.quantity)} reserved · SL {p.stopLoss || '—'} · TP {p.takeProfit || '—'}</Label><GhostButton tone="light" label="Close position" onPress={() => setClosing(p.id)} /></View>) : <ContentState kind="empty" tone="light" title="Your first trade starts here" detail="Choose a market and open a virtual position. Your real money stays out of it." /> : wallet.history.length ? wallet.history.map(p => <Row key={p.id}><View style={{ flex: 1 }}><Label bold>{p.symbol} · {p.direction.toUpperCase()}</Label><Label muted size={11}>{p.quantity} units · {new Date(p.closed!).toLocaleDateString()}</Label></View><Label color={(p.pnl || 0) < 0 ? colors.sheetDown : colors.sheetUp}>{(p.pnl || 0) < 0 ? '↘ ' : '↗ '}{money(p.pnl || 0)}</Label></Row>) : <ContentState kind="empty" tone="light" title="A clean trading journal" detail="Closed positions appear here with realized profit or loss, including fees." />}
+      </>}
+    </Sheet>
+  </SafeAreaView>;
 }
+const styles = StyleSheet.create({ workspace: { width: '100%', alignSelf: 'center', flex: 1, gap: 16 }, hero: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 16, gap: 24 } });
