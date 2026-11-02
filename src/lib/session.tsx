@@ -11,13 +11,14 @@ const rcKey = Platform.OS === 'ios' ? process.env.EXPO_PUBLIC_RC_IOS_KEY : proce
 
 type Ctx = {
   ready: boolean; session: Session | null; plan: Plan; supabaseConfigured: boolean;
-  disclaimerAccepted: boolean; onboarded: boolean;
+  disclaimerAccepted: boolean; onboarded: boolean; demo: boolean; startDemo: () => Promise<void>; signOut: () => Promise<void>; resetOnboarding: () => Promise<void>;
   acceptDisclaimer: () => Promise<void>; finishOnboarding: () => Promise<void>; refreshPlan: () => Promise<void>;
 };
 const SessionCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
+  const [demo, setDemo] = useState(false);
   const [ready, setReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [plan, setPlan] = useState<Plan>('free');
@@ -36,6 +37,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (rcKey) Purchases.configure({ apiKey: rcKey });
     (async () => {
+      setDemo((await AsyncStorage.getItem('demo')) === '1');
       setD((await AsyncStorage.getItem('disclaimer')) === '1');
       setO((await AsyncStorage.getItem('onboarded')) === '1');
       if (supabase) {
@@ -46,14 +48,17 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     })();
     const subscription = supabase?.auth.onAuthStateChange(async (_e, s) => {
       setSession(s);
-      if (rcKey) { try { s ? await Purchases.logIn(s.user.id) : await Purchases.logOut(); } catch {} }
+      if (rcKey) { try { if (s) await Purchases.logIn(s.user.id); else await Purchases.logOut(); } catch {} }
       refreshPlan();
     });
     return () => subscription?.data.subscription.unsubscribe();
   }, [refreshPlan]);
 
+  const startDemo = async () => { await AsyncStorage.setItem('demo', '1'); setDemo(true); };
+  const signOut = async () => { await supabase?.auth.signOut(); await AsyncStorage.removeItem('demo'); setDemo(false); };
+  const resetOnboarding = async () => { await AsyncStorage.removeItem('onboarded'); setO(false); };
   const acceptDisclaimer = async () => { await AsyncStorage.setItem('disclaimer', '1'); setD(true); };
   const finishOnboarding = async () => { await AsyncStorage.setItem('onboarded', '1'); setO(true); };
 
-  return <SessionCtx.Provider value={{ ready, session, plan, supabaseConfigured, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan }}>{children}</SessionCtx.Provider>;
+  return <SessionCtx.Provider value={{ demo, startDemo, signOut, resetOnboarding, ready, session, plan, supabaseConfigured, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan }}>{children}</SessionCtx.Provider>;
 }

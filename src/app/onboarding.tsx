@@ -1,29 +1,16 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
-import { Body, Button, Screen, Title } from '../components/ui';
+import { ScrollView, View } from 'react-native';
+import { AppButton, Badge, Brand, Chip, GlassCard, Label, Row } from '../components/design';
+import { Screen } from '../components/ui';
 import { useSession } from '../lib/session';
-import { useTheme } from '../lib/theme';
-
-const pages = [
-  { t: 'Know the news before it moves price', b: 'Track high-impact events and get an alert before they hit.' },
-  { t: 'Learn to read candles', b: 'Short lessons with notes, voice and quizzes on price action.' },
-  { t: 'Practice without risking money', b: 'Paper trade, backtest ideas and keep a journal of every trade.' },
-];
-
+import { useWorkspace } from '../lib/workspace';
+const questions = [ { title: 'How experienced are you with trading?', options: ['Complete beginner', 'Know the basics', 'Intermediate', 'Experienced'] }, { title: 'Which markets interest you?', options: ['Forex', 'Cryptocurrency', 'Gold and Silver', 'Oil and Commodities', 'Stocks and Indices'] }, { title: 'What is your main goal?', options: ['Learn financial markets', 'Practice trading', 'Improve strategies', 'Understand market analysis'] } ];
 export default function Onboarding() {
-  const [i, setI] = useState(0);
-  const { finishOnboarding } = useSession();
-  const { colors } = useTheme();
-  const last = i === pages.length - 1;
-  return (
-    <Screen>
-      <Pressable onPress={finishOnboarding} style={{ alignSelf: 'flex-end' }}><Text style={{ color: colors.primary, fontSize: 16 }}>Skip</Text></Pressable>
-      <View style={{ flex: 1, justifyContent: 'center', gap: 12 }}>
-        <Title>{pages[i].t}</Title>
-        <Body style={{ fontSize: 18 }}>{pages[i].b}</Body>
-        <Body>{i + 1} of {pages.length}</Body>
-      </View>
-      <Button label={last ? 'Get started' : 'Next'} onPress={last ? finishOnboarding : () => setI(i + 1)} />
-    </Screen>
-  );
+  const [step, setStep] = useState(0); const { t, language, update, preferences } = useWorkspace(); const { finishOnboarding, acceptDisclaimer } = useSession();
+  const [experience, setExperience] = useState(preferences.experience); const [markets, setMarkets] = useState(preferences.markets); const [goal, setGoal] = useState(preferences.goal); const [busy, setBusy] = useState(false); const [error, setError] = useState('');
+  const next = async () => { if (step < 4) return setStep(step + 1); setBusy(true); try { update({ preferences: { experience, markets, goal } }); await acceptDisclaimer(); await finishOnboarding(); } catch { setError('Could not save your setup. Please try again.'); } finally { setBusy(false); } };
+  const selected = step === 2 ? experience : step === 4 ? goal : ''; const disabled = step === 2 ? !experience : step === 3 ? !markets.length : step === 4 ? !goal : false;
+  return <Screen><ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignSelf: 'center', width: '100%', maxWidth: 550, gap: 26, paddingVertical: 24 }}><Brand /><Row><Badge>YOUR PRACTICE STARTS HERE</Badge><Label muted size={12}>{step + 1} / 5</Label></Row><View style={{ height: 5, borderRadius: 5, backgroundColor: '#E6EBEF' }}><View style={{ height: 5, width: `${(step + 1) * 20}%`, backgroundColor: '#00E676', borderRadius: 5 }} /></View>
+  {step === 0 ? <><Brand large /><Label size={40} bold>{t('Trade Smarter. Practice Wiser.')}</Label><Label muted size={17}>A little curiosity. A lot of possibility. Explore markets with $10,000 in virtual money and build confidence at your own pace.</Label><GlassCard><Label bold>No real money. No pressure.</Label><Label muted>Educational simulator only. Simulated prices are not live quotes. You cannot deposit, withdraw, or execute brokerage trades.</Label></GlassCard></> : step === 1 ? <><Label size={32} bold>{t('Choose your language')}</Label><Label muted>Make yourself at home. You can change this later.</Label>{(['en', 'am'] as const).map(l => <AppButton key={l} label={l === 'en' ? 'English' : 'አማርኛ · Amharic'} variant={language === l ? 'primary' : 'secondary'} onPress={() => update({ language: l })} />)}</> : <><Label size={30} bold>{t(questions[step - 2].title)}</Label><Label muted>{step === 3 ? 'Select all that interest you.' : 'We’ll tailor your starting point. There is no wrong answer.'}</Label><View style={{ gap: 12 }}>{questions[step - 2].options.map(option => <Chip key={option} label={t(option)} selected={step === 3 ? markets.includes(option) : selected === option} onPress={() => step === 2 ? setExperience(option) : step === 4 ? setGoal(option) : setMarkets(markets.includes(option) ? markets.filter(m => m !== option) : [...markets, option])} />)}</View></>}
+  {!!error && <Label color="#C43549">{error}</Label>}<AppButton label={t(step === 0 ? 'Start your journey' : 'Continue')} onPress={next} disabled={disabled} busy={busy} icon="arrow-forward" />{step > 0 && <AppButton label={t('Back')} variant="ghost" onPress={() => setStep(step - 1)} />}</ScrollView></Screen>;
 }

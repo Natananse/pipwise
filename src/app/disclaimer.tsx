@@ -1,20 +1,18 @@
-import React from 'react';
-import { View } from 'react-native';
-import { Body, Button, Screen, Title } from '../components/ui';
+import { router } from 'expo-router';
+import React, { useState } from 'react';
+import { AppButton, Badge, GlassCard, Icon, Label, Page } from '../components/design';
 import { useSession } from '../lib/session';
 
 export const DISCLAIMER = 'Educational content only, not financial advice. Most retail traders lose money.';
-
 export default function Disclaimer() {
   const { acceptDisclaimer } = useSession();
-  return (
-    <Screen>
-      <View style={{ flex: 1, justifyContent: 'center', gap: 12 }}>
-        <Title>Before you start</Title>
-        <Body style={{ fontSize: 18 }}>{DISCLAIMER}</Body>
-        <Body>PipWise teaches and helps you practice. It never gives trade signals or guarantees profit.</Body>
-      </View>
-      <Button label="I understand" onPress={acceptDisclaimer} />
-    </Screen>
-  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const continueToPractice = async () => {
+    setBusy(true);
+    try { await acceptDisclaimer(); router.replace('/practice'); }
+    catch { setError('Could not save your acknowledgement. Please try again.'); }
+    finally { setBusy(false); }
+  };
+  return <Page title="Before you start." subtitle="BUILD KNOWLEDGE. UNDERSTAND THE RISKS."><GlassCard><Icon name="shield-checkmark-outline" size={42} color="#087D51" /><Badge>EDUCATIONAL SIMULATOR</Badge><Label size={24} bold>Practice with perspective.</Label><Label>{DISCLAIMER}</Label><Label muted>Pipswise uses virtual funds and fixed sample quotes. It does not execute real trades, accept deposits, provide trade signals, or guarantee profit.</Label><Label muted>Stop loss and take profit levels are practice targets. Close simulated positions manually. Results in this workspace do not predict real trading outcomes.</Label>{!!error && <Label color="#C43549">{error}</Label>}<AppButton label="I understand · Continue" busy={busy} onPress={continueToPractice} /></GlassCard></Page>;
 }
