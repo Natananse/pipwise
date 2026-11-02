@@ -1,0 +1,2 @@
+# Preserve the flat dependency layout used by the existing Expo/native project.
+nodeLinker: hoisted
