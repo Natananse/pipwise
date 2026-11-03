@@ -1,62 +1,111 @@
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Line, Path, Text as SvgText } from 'react-native-svg';
-import { BottomSheet } from '../../components/BottomSheet';
-import { GhostButton } from '../../components/GhostButton';
-import { OrderBottomSheet } from '../../components/OrderBottomSheet';
-import { PairChip } from '../../components/PairChip';
-import { PrimaryButton } from '../../components/PrimaryButton';
-import { TradingChart } from '../../components/TradingChart';
-import { ErrorState, GlassCard, Icon, Label, PracticeLabel, Row } from '../../components/design';
-import { assets, money, price } from '../../lib/market';
-import { Direction, summary } from '../../lib/simulator';
+import { EquityCurve } from '../../components/EquityCurve';
+import { SegmentedControl } from '../../components/SegmentedControl';
+import { AppButton, Chip, EmptyState, ErrorState, GlassCard, Icon, Label, LoadingState, PracticeLabel, Row, WorkspaceHeader } from '../../components/design';
+import { portfolioAnalytics } from '../../lib/analytics';
+import { assets, money } from '../../lib/market';
+import { initialWallet, pnl, Position } from '../../lib/simulator';
 import { fonts, ThemeSurface, useTheme } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
 
-export default function Analyse() { return <ThemeSurface tone="dark"><AnalysisWorkspace /></ThemeSurface>; }
-function AnalysisWorkspace() {
-  const { t, wallet, storageError } = useWorkspace(); const { colors } = useTheme();
-  const [asset, setAsset] = useState(assets[0]); const [direction, setDirection] = useState<Direction | null>(null);
-  const stats = summary(wallet); const { width, height } = useWindowDimensions(); const insets = useSafeAreaInsets(); const wide = width > 1050;
-  const wins = wallet.history.filter(p => (p.pnl || 0) > 0).length;
-  const tabSpace = wide ? 24 : 84 + Math.max(insets.bottom, 14);
-  const plotHeight = Math.max(200, Math.min(640, height - insets.top - tabSpace - (wide ? 280 : 408)));
-  const movement = asset.change < 0 ? colors.down : colors.up;
+const signedMoney = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${money(Math.abs(value))}`;
+const optionalMoney = (value: number | null) => value === null ? '—' : signedMoney(value);
+
+export default function Analyse() {
+  return <ThemeSurface tone="dark"><AnalyticsDashboard /></ThemeSurface>;
+}
+
+function AnalyticsDashboard() {
+  const { wallet, loaded, storageError, t } = useWorkspace();
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const wide = width > 1050;
+  const [section, setSection] = useState('Open positions');
+  const [filter, setFilter] = useState('All trades');
+  const [limit, setLimit] = useState(10);
+  const stats = useMemo(() => portfolioAnalytics(wallet), [wallet]);
+  const history = useMemo(() => [...stats.chronological].reverse().filter(p =>
+    filter === 'Winners' ? (p.pnl ?? 0) > 0 : filter === 'Losers' ? (p.pnl ?? 0) < 0 : filter === 'Breakeven' ? (p.pnl ?? 0) === 0 : true), [stats.chronological, filter]);
+  const positions = section === 'Open positions' ? wallet.positions : history;
+  const gain = stats.equity - initialWallet.cash;
+  const metrics = [
+    { label: 'Realized P&L', value: signedMoney(stats.realized), detail: 'Closed trades · after fees', color: stats.realized < 0 ? colors.down : colors.up },
+    { label: 'Open P&L', value: signedMoney(stats.unrealized), detail: `${wallet.positions.length} open positions · before fees`, color: stats.unrealized < 0 ? colors.down : colors.up },
+    { label: 'Win rate', value: stats.winRate === null ? '—' : `${stats.winRate.toFixed(1)}%`, detail: `${stats.wins} wins / ${wallet.history.length} closed trades`, color: colors.text },
+    { label: 'Profit factor', value: stats.profitFactor === null ? '—' : stats.profitFactor.toFixed(2), detail: stats.grossLoss ? 'Gross profit / gross loss' : 'Needs a losing trade', color: colors.text },
+  ];
   return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
     <StatusBar style="light" />
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24, maxWidth: 1600, width: '100%', alignSelf: 'center' }}>
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: wide ? 24 : 0 }}>
-        <View style={{ flex: wide ? 2.2 : undefined }}>
-          <View style={{ paddingHorizontal: 22, paddingTop: 16, paddingBottom: 16, gap: 16 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{assets.map(a => <PairChip key={a.symbol} label={a.symbol} mark={a.mark} selected={asset.symbol === a.symbol} onPress={() => setAsset(a)} />)}</ScrollView>
-            <Row style={{ alignItems: 'center', flexWrap: 'wrap' }}><View><Label size={width < 360 ? 34 : 40} bold style={{ fontFamily: fonts.extraBold, letterSpacing: -1.5 }}>{price(asset)}</Label><Label size={11} muted>{asset.name} · fixed demo quote</Label></View><Row style={{ justifyContent: 'flex-end' }}><Icon name={asset.change < 0 ? 'arrow-down' : 'arrow-up'} color={movement} size={16} /><Label bold size={15} color={movement}>{Math.abs(asset.change).toFixed(2)}%</Label></Row></Row>
-          </View>
-          <View style={{ paddingHorizontal: 22, paddingBottom: 16 }}><TradingChart key={asset.symbol} asset={asset} plotHeight={plotHeight} compactControls /></View>
-
+    {!loaded ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: wide ? 40 : 110 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
+      <WorkspaceHeader title={t('Analyse')} subtitle="PORTFOLIO & PERFORMANCE" />
+      <PracticeLabel />
+      {!!storageError && <ErrorState message={storageError} />}
+      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16 }}>
+        <GlassCard style={{ flex: 1, padding: 24 }}>
+          <Row><Label muted size={12}>Total account equity</Label><Icon name="wallet-outline" color={colors.primary} /></Row>
+          <Label size={width < 360 ? 32 : 40} bold style={{ fontFamily: fonts.extraBold, letterSpacing: -1.5 }}>{money(stats.equity)}</Label>
+          <Row style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}><Label bold size={13} color={gain < 0 ? colors.down : colors.up}>{signedMoney(gain)} ({(gain / initialWallet.cash * 100).toFixed(2)}%)</Label><Label muted size={11}>all time</Label></Row>
+          <Row style={{ flexWrap: 'wrap', borderTopWidth: 1, borderColor: colors.border, paddingTop: 16 }}><View><Label muted size={11}>Available cash</Label><Label bold>{money(wallet.cash)}</Label></View><View><Label muted size={11}>Reserved capital</Label><Label bold>{money(stats.reserved)}</Label></View></Row>
+        </GlassCard>
+        <View style={{ flex: wide ? 1.6 : undefined, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+          {metrics.map(metric => <GlassCard key={metric.label} style={{ flexBasis: width < 360 ? '100%' : '46%', flexGrow: 1, padding: 18, gap: 8 }}><Label muted size={11}>{metric.label}</Label><Label bold size={24} color={metric.color}>{metric.value}</Label><Label muted size={10}>{metric.detail}</Label></GlassCard>)}
         </View>
-        {wide && <View style={{ flex: 1, paddingTop: 24, paddingRight: 22 }}><MarketContext change={asset.change} /></View>}
       </View>
-      <View style={{ padding: 22, paddingTop: 32, gap: 24 }}>
-        {!!storageError && <ErrorState message={storageError} />}
-        {!wide && <MarketContext change={asset.change} />}
-        <View style={{ gap: 8 }}><Label muted size={11}>YOUR PRACTICE REVIEW</Label><Label size={23} bold>{t('Market perspective.')}</Label></View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>{[['Account equity', money(stats.equity)], ['Realized P/L', money(stats.realized)], ['Win rate', wallet.history.length ? `${(wins / wallet.history.length * 100).toFixed(0)}%` : 'No closed trades'], ['Completed trades', String(wallet.history.length)]].map(([label, value]) => <GlassCard key={label} style={{ width: wide ? '23%' : width < 400 ? '100%' : '47%', padding: 16 }}><Label muted size={11}>{label}</Label><Label size={value.length > 14 ? 16 : 22} bold>{value}</Label></GlassCard>)}</View>
-        <GlassCard><Label bold size={20}>Equity journal</Label><Label muted size={13}>{wallet.history.length ? 'Closed trade results in chronological order, net of fees. Open position fees are reflected in current equity.' : 'Your curve starts at $10,000. Close your first virtual position to begin your equity journal.'}</Label><EquityCurve values={[10000, ...wallet.history.slice().reverse().map((_, i, history) => 10000 + history.slice(0, i + 1).reduce((s, p) => s + (p.pnl || 0), 0))]} /></GlassCard>
+      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
+        <GlassCard style={{ flex: wide ? 1.7 : undefined }}>
+          <Row><View style={{ flex: 1 }}><Label bold size={20}>Equity curve</Label><Label muted size={11}>All-time closed results, net of trading fees</Label></View><Icon name="pulse-outline" color={colors.primary} /></Row>
+          <Label bold size={28}>{money(stats.curve[stats.curve.length - 1])}</Label>
+          <EquityCurve values={stats.curve} />
+          <Label muted size={11}>{wallet.history.length ? `Current equity also includes ${signedMoney(stats.unrealized)} open P&L and ${money(stats.openFees)} in open entry fees. The curve records balances when trades close.` : 'Your curve begins at $10,000. Close a practice trade to record your first result.'}</Label>
+        </GlassCard>
+        <GlassCard style={{ flex: wide ? 1 : undefined }}>
+          <Label bold size={20}>Trade outcomes</Label>
+          <Label bold size={36} color={colors.primary}>{stats.winRate === null ? '—' : `${stats.winRate.toFixed(1)}%`}<Label muted size={12}> win rate</Label></Label>
+          <View accessible accessibilityLabel={`${stats.wins} winning, ${stats.losses} losing, ${stats.breakeven} breakeven trades`} style={{ height: 12, borderRadius: 6, overflow: 'hidden', flexDirection: 'row', backgroundColor: colors.raised }}>
+            {stats.wins > 0 && <View style={{ flex: stats.wins, backgroundColor: colors.up }} />}
+            {stats.losses > 0 && <View style={{ flex: stats.losses, backgroundColor: colors.down }} />}
+            {stats.breakeven > 0 && <View style={{ flex: stats.breakeven, backgroundColor: colors.sub }} />}
+          </View>
+          {[['Winning trades', stats.wins, colors.up], ['Losing trades', stats.losses, colors.down], ['Breakeven trades', stats.breakeven, colors.sub]].map(([label, count, color]) => <Row key={label}><Row><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color as string }} /><Label muted size={12}>{label}</Label></Row><Label bold>{count}</Label></Row>)}
+          <Label muted size={11}>A win is a closed trade with positive P&L after fees. Breakeven trades count toward the total.</Label>
+        </GlassCard>
       </View>
-    </ScrollView>
-          <BottomSheet style={{ paddingBottom: wide ? 24 : tabSpace + 8 }}>
-            <View style={{ gap: 8 }}><Row><PrimaryButton label={t('Buy')} icon="arrow-up" tone="light" haptic onPress={() => setDirection('buy')} style={{ flex: 1 }} /><GhostButton label={t('Sell')} icon="arrow-down" tone="light" intent="negative" haptic onPress={() => setDirection('sell')} style={{ flex: 1 }} /></Row><PracticeLabel /></View>
-          </BottomSheet>
-    <OrderBottomSheet asset={asset} direction={direction} onClose={() => setDirection(null)} />
+      <GlassCard>
+        <Label bold size={20}>Performance statistics</Label>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24 }}>
+          {[
+            ['Average win', optionalMoney(stats.averageWin)], ['Average loss', optionalMoney(stats.averageLoss)],
+            ['Best trade', optionalMoney(stats.bestTrade)], ['Worst trade', optionalMoney(stats.worstTrade)],
+            ['Average trade', optionalMoney(stats.expectancy)], ['Max. closed drawdown', wallet.history.length ? `${stats.maxDrawdown.toFixed(2)}%` : '—'],
+          ].map(([label, value]) => <View key={label} style={{ flexBasis: wide ? '28%' : '43%', flexGrow: 1, gap: 8 }}><Label muted size={11}>{label}</Label><Label bold size={18}>{value}</Label></View>)}
+        </View>
+        <Label muted size={10}>Statistics use all closed trades after fees. Drawdown measures the largest peak-to-trough drop in the closed-trade balance; intratrade movements are not recorded.</Label>
+      </GlassCard>
+      <GlassCard style={{ padding: 18 }}>
+        <Row><Label bold size={20}>Your portfolio</Label><Label muted size={11}>{positions.length} {section === 'Open positions' ? 'open' : 'results'}</Label></Row>
+        <SegmentedControl options={['Open positions', 'Trade history']} value={section} onChange={value => { setSection(value); setLimit(10); }} />
+        {section === 'Trade history' && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{['All trades', 'Winners', 'Losers', 'Breakeven'].map(value => <Chip key={value} label={value} selected={filter === value} onPress={() => { setFilter(value); setLimit(10); }} />)}</ScrollView>}
+        {!positions.length ? <EmptyState icon={section === 'Open positions' ? 'layers-outline' : 'receipt-outline'} title={section === 'Open positions' ? 'No open positions' : filter === 'All trades' ? 'Your journal starts here' : 'No matching trades'} detail={section === 'Open positions' ? 'Open a virtual trade from the Trade tab to track your positions here.' : 'Closed trades appear here with their results after fees. Try another filter or close a practice position.'} /> : positions.slice(0, limit).map(position => <PositionRow key={position.id} position={position} closed={section === 'Trade history'} />)}
+        {positions.length > limit && <AppButton variant="secondary" label={`Show more (${positions.length - limit} remaining)`} onPress={() => setLimit(value => value + 10)} />}
+        <AppButton variant="secondary" label="Go to trading" icon="arrow-forward" onPress={() => router.push('/practice')} />
+      </GlassCard>
+    </ScrollView>}
   </SafeAreaView>;
 }
-function MarketContext({ change }: { change: number }) {
-  return <GlassCard><Label muted size={11}>READING THE MARKET</Label><Label size={22} bold>{change > 0 ? 'An upward sample session' : 'A softer sample session'}</Label><Label muted size={13}>The example session shows a {Math.abs(change)}% {change > 0 ? 'rise' : 'decline'}. This describes the sample, not a forecast or a trading recommendation.</Label><Label bold>Before taking a view</Label><Label muted size={13}>Compare timeframes. Identify what would invalidate your idea. Decide your risk before opening a position.</Label><Label muted size={11}>Live indicators and external market research are not connected. No buy or sell signals are generated.</Label></GlassCard>;
-}
-function EquityCurve({ values }: { values: number[] }) {
-  const { colors } = useTheme(); const min = Math.min(...values) - 1; const max = Math.max(...values) + 1;
-  const path = values.map((v, i) => `${i ? 'L' : 'M'}${20 + i / Math.max(1, values.length - 1) * 650},${130 - (v - min) / (max - min) * 110}`).join(' ');
-  return <Svg height={170} width="100%" viewBox="0 0 740 170" accessibilityLabel={`Equity journal, ${values.length - 1} closed trades`}><Line x1="20" x2="670" y1="130" y2="130" stroke={colors.border} /><Path d={values.length === 1 ? 'M20,75 L670,75' : path} stroke={values[values.length - 1] >= values[0] ? colors.up : colors.down} strokeWidth="3" fill="none" /><SvgText x="20" y="160" fill={colors.sub} fontSize="12" fontFamily={fonts.medium}>Start · $10,000</SvgText><SvgText x="600" y="160" fill={colors.sub} fontSize="12" fontFamily={fonts.medium}>{values.length - 1} trades</SvgText></Svg>;
+
+function PositionRow({ position: p, closed }: { position: Position; closed: boolean }) {
+  const { colors } = useTheme();
+  const asset = assets.find(a => a.symbol === p.symbol);
+  const result = closed ? p.pnl ?? 0 : pnl(p);
+  const date = new Date((closed ? p.closed : p.opened) || p.opened);
+  return <View style={{ paddingVertical: 16, gap: 10, borderTopWidth: 1, borderColor: colors.border }}>
+    <Row style={{ flexWrap: 'wrap' }}><Row><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}><Icon name={p.direction === 'buy' ? 'arrow-up' : 'arrow-down'} size={18} color={p.direction === 'buy' ? colors.up : colors.down} /></View><View><Label bold>{p.symbol}</Label><Label muted size={10}>{p.direction === 'buy' ? 'BUY / LONG' : 'SELL / SHORT'} · {p.quantity} units</Label></View></Row><View><Label bold color={result < 0 ? colors.down : result > 0 ? colors.up : colors.sub}>{signedMoney(result)}</Label><Label muted size={10} style={{ textAlign: 'right' }}>{closed ? result > 0 ? 'WIN · NET P&L' : result < 0 ? 'LOSS · NET P&L' : 'BREAKEVEN' : 'UNREALIZED · BEFORE FEES'}</Label></View></Row>
+    <Row style={{ flexWrap: 'wrap' }}><Label muted size={11}>Entry {p.entry.toFixed(asset?.precision ?? 2)}{!closed && asset ? ` · Mark ${asset.price.toFixed(asset.precision)}` : ''}</Label><Label muted size={10}>{closed ? 'Closed' : 'Opened'} {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Label></Row>
+    {!closed && <Label muted size={10}>Reserved {money(p.entry * p.quantity)} · SL {p.stopLoss ?? '—'} · TP {p.takeProfit ?? '—'}</Label>}
+  </View>;
 }
