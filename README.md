@@ -32,4 +32,14 @@ Educational forex app. Not financial advice. No trade signals, no live trading.
 
 Run `pnpm lint` and `pnpm typecheck` to check changes. Use pnpm for dependency installation and keep `pnpm-lock.yaml` as the only JavaScript lockfile.
 
+## Welcome and returning users
+
+The launch animation uses the app's market artwork and respects the device's reduced-motion setting. New users choose English or Amharic, then answer three questions about experience, markets, and goals. Language and answers are saved together in AsyncStorage before onboarding is marked complete. Failed saves stay on the current screen for retry.
+
+Returning users skip setup only when the completion flag and all three valid answers are saved. Signed-in and demo users then go to Trade; signed-out users go to authentication. Profile → **Onboarding questions** opens Question 1 directly. Profile → **Review onboarding** replays the full welcome and language flow. Both preserve the virtual wallet and lessons. Profile also lets users change language directly.
+
+The native splash configuration uses `expo-splash-screen` and requires a new native build after regenerating the project from `app.json`. Check the final native splash transition in a release build; Expo Go does not reproduce all splash settings. The animated welcome itself uses React Native Animated and SVG, with no remote animation assets.
+
+Run `node --test tests/*.test.cjs` to verify preference persistence, startup routing, and simulator behavior.
+
 On Windows use `gradlew.bat` instead of `./gradlew`.

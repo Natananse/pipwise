@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, ThemeSurface, useTheme } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
+import { AppLogo } from './AppLogo';
 // Compatibility for screens outside this restyle; new screens use colors directly.
 export const tokens = { space: 24, radius: 24, lime: '#C8F169', navy: '#0D1011', red: '#B83A33', green: '#117A4B' };
 export function Icon({ name, size = 20, color }: { name: keyof typeof Ionicons.glyphMap; size?: number; color?: string }) {
@@ -16,7 +17,7 @@ export function Label({ children, size = 14, muted = false, bold = false, color,
   return <Text style={[{ color: color || (muted ? colors.sub : colors.text), fontSize: size, fontFamily: bold ? fonts.bold : fonts.medium, lineHeight: size * 1.45, fontVariant: ['tabular-nums'] }, style]}>{children}</Text>;
 }
 export function Brand({ large = false }: { large?: boolean }) {
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Image accessibilityLabel="Pipswise owl logo" source={require('../../assets/android-icon-backgrounds.png')} style={{ width: large ? 96 : 40, height: large ? 96 : 40, resizeMode: 'contain' }} />{!large && <Label size={22} bold>Pipswise.</Label>}</View>;
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><AppLogo size={large ? 96 : 40} />{!large && <Label size={22} bold>Pipswise.</Label>}</View>;
 }
 export function AppButton({ label, onPress, variant = 'primary', icon, disabled, busy, compact = false }: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'danger' | 'ghost'; icon?: keyof typeof Ionicons.glyphMap; disabled?: boolean; busy?: boolean; compact?: boolean }) {
   const { colors } = useTheme();
