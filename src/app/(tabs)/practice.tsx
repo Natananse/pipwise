@@ -1,83 +1,146 @@
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BottomSheet } from '../../components/BottomSheet';
-import { ContentState } from '../../components/ContentState';
-import { GhostButton } from '../../components/GhostButton';
-import { MarketRow } from '../../components/MarketRow';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MarketBadge } from '../../components/MarketBadge';
 import { OrderBottomSheet } from '../../components/OrderBottomSheet';
-import { PrimaryButton } from '../../components/PrimaryButton';
 import { TradingChart } from '../../components/TradingChart';
-import { AppInput, Chip, Icon, Label, PracticeLabel, Row, Sheet, WorkspaceHeader, ErrorState } from '../../components/design';
-import { Asset, assets, money, price } from '../../lib/market';
-import { Direction, pnl, summary } from '../../lib/simulator';
-import { fonts, ThemeSurface, useTheme } from '../../lib/theme';
+import { AppInput, ErrorState, Icon, Label, LoadingState, Row, Sheet } from '../../components/design';
+import { lightHaptic } from '../../lib/haptics';
+import { Asset, assets, money } from '../../lib/market';
+import { marketVisual } from '../../lib/marketVisuals';
+import { navigationLayout, tabBarClearance } from '../../lib/navigation';
+import { Direction, summary } from '../../lib/simulator';
+import { fonts, ThemeSurface } from '../../lib/theme';
+import { useReducedMotion } from '../../lib/useReducedMotion';
 import { useWorkspace } from '../../lib/workspace';
 
-export default function Trade() { return <ThemeSurface tone="dark"><TradeWorkspace /></ThemeSurface>; }
-function TradeWorkspace() {
-  const { wallet, favorites, toggle, close, t, loaded, storageError } = useWorkspace();
-  const { colors } = useTheme(); const { width } = useWindowDimensions(); const insets = useSafeAreaInsets(); const wide = width > 1050;
-  const [asset, setAsset] = useState(assets[0]);
-  const [direction, setDirection] = useState<Direction | null>(null);
-  const [search, setSearch] = useState(''); const [category, setCategory] = useState('All');
-  const [portfolio, setPortfolio] = useState('Open positions'); const [closing, setClosing] = useState<string | null>(null);
-  const [preview, setPreview] = useState(false); const [showPortfolio, setShowPortfolio] = useState(false);
-  const stats = summary(wallet);
-  const filtered = assets.filter(a => (category === 'All' || (category === 'Favorites' ? favorites.includes(a.symbol) : a.category === category)) && `${a.symbol} ${a.name}`.toLowerCase().includes(search.toLowerCase()));
-  const choose = (a: Asset) => { setAsset(a); setPreview(true); };
-  const balance = money(stats.equity).split('.');
-  const gain = stats.equity - 10000;
-  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
-    <StatusBar style="light" />
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
-      <View style={[styles.workspace, { flexDirection: wide ? 'row' : 'column', maxWidth: wide ? 1440 : undefined }]}>
-        <View style={[styles.hero, { flex: wide ? 1 : undefined }]}>
-          <WorkspaceHeader title={t('Trade')} subtitle="YOUR PRACTICE ACCOUNT" />
-          <View style={{ gap: 8, paddingTop: 16 }}>
-            <Label size={13} muted>Total virtual balance</Label>
-            <Label size={width < 360 ? 42 : 52} bold style={{ fontFamily: fonts.extraBold, letterSpacing: -2, lineHeight: 68 }}>{balance[0]}<Label size={width < 360 ? 42 : 52} color={colors.sub} style={{ fontFamily: fonts.extraBold }}>.{balance[1]}</Label></Label>
-            <Row style={{ justifyContent: 'flex-start' }}><Icon name={gain < 0 ? 'arrow-down' : 'arrow-up'} size={14} color={gain < 0 ? colors.down : colors.up} /><Label size={12} color={gain < 0 ? colors.down : colors.up}>{gain >= 0 ? '+' : ''}{money(gain)} ({((stats.equity / 10000 - 1) * 100).toFixed(2)}%)</Label><Label size={11} muted>all time</Label></Row>
-          </View>
-          <PrimaryButton label="New trade" icon="add" onPress={() => setPreview(true)} />
-          <View style={{ backgroundColor: colors.card, borderRadius: 24, padding: 24, gap: 24 }}>
-            <Row style={{ alignItems: 'flex-start' }}><View style={{ flex: 1, gap: 8 }}><Label size={12} muted>Open P&L</Label><Row style={{ justifyContent: 'flex-start' }}><Icon name={stats.unrealized < 0 ? 'trending-down' : 'trending-up'} size={18} color={stats.unrealized < 0 ? colors.down : colors.up} /><Label size={22} bold color={stats.unrealized < 0 ? colors.down : colors.up}>{money(stats.unrealized)}</Label></Row></View>
-              <Pressable accessibilityRole="button" accessibilityLabel="View positions and trading history" onPress={() => setShowPortfolio(true)} style={({ pressed }) => ({ flex: 1, gap: 8, minHeight: 56, borderLeftWidth: 1, borderColor: colors.border, paddingLeft: 24, opacity: pressed ? 0.6 : 1 })}><Row><Label size={12} muted>Positions</Label><Icon name="arrow-forward" size={16} color={colors.sub} /></Row><Label size={22} bold>{wallet.positions.length.toString().padStart(2, '0')}</Label></Pressable>
-            </Row>
-            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border }} />
-            <Row><Label size={11} muted style={{ flex: 1 }}>{t('Available funds')}</Label><Label size={13}>{money(wallet.cash)}</Label></Row>
-            <Row><Label size={11} muted>Reserved / realized P&L</Label><Label size={11}>{money(stats.reserved)} / {money(stats.realized)}</Label></Row>
-          </View>
-          <GhostButton label="Portfolio & history" icon="layers-outline" onPress={() => setShowPortfolio(true)} />
-          <PracticeLabel />
-          {!!storageError && <ErrorState message={storageError} />}
-        </View>
-        <BottomSheet style={{ flex: wide ? 1.2 : 1, marginTop: wide ? 24 : 8, borderRadius: wide ? 32 : undefined, paddingBottom: wide ? 32 : 104 + Math.max(insets.bottom, 14) }}>
-          <Row><View><Label size={26} bold>{t('Markets')}</Label><Label size={12} muted>Find your next practice.</Label></View><Icon name="search-outline" color={colors.sheetSub} /></Row>
-          <AppInput label="Find an asset" value={search} onChangeText={setSearch} placeholder="Search symbol or name" />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{['All', 'Favorites', 'Forex', 'Crypto', 'Metals', 'Commodities', 'Indices'].map(c => <Chip key={c} label={c} selected={category === c} onPress={() => setCategory(c)} />)}</ScrollView>
-          <View>{!loaded ? <ContentState kind="skeleton" tone="light" title="Loading markets" /> : filtered.length ? filtered.map(a => <MarketRow key={a.symbol} asset={a} selected={asset.symbol === a.symbol} favorite={favorites.includes(a.symbol)} onFavorite={() => toggle('favorites', a.symbol)} onPress={() => choose(a)} />) : <><ContentState kind="empty" tone="light" title="No matching markets" detail="Try another category or search term, or add a favorite to your list." /><GhostButton tone="light" label="Show all markets" onPress={() => { setSearch(''); setCategory('All'); }} /></>}</View>
-          <PracticeLabel />
-        </BottomSheet>
-      </View>
-    </ScrollView>
-    <Sheet visible={preview || direction !== null} onClose={() => { setPreview(false); setDirection(null); }} title={direction ? 'Virtual order' : asset.symbol}>
-      {direction ? <OrderBottomSheet key={`${asset.symbol}-${direction}`} embedded asset={asset} direction={direction} onClose={() => setDirection(null)} /> : <>
-      <Row><Label muted size={12}>{asset.name}</Label><Label size={24} bold>{price(asset)}</Label></Row>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{assets.map(a => <Chip key={a.symbol} label={a.symbol} selected={asset.symbol === a.symbol} onPress={() => setAsset(a)} />)}</ScrollView>
-      <TradingChart key={asset.symbol} asset={asset} />
-      <PrimaryButton label={`${t('Buy')} ${asset.symbol}`} icon="arrow-up" tone="light" haptic onPress={() => { setPreview(false); setDirection('buy'); }} />
-      <GhostButton label={`${t('Sell')} ${asset.symbol}`} icon="arrow-down" tone="light" intent="negative" haptic onPress={() => { setPreview(false); setDirection('sell'); }} />
-      <PracticeLabel />
-      </>}
-    </Sheet>
-    <Sheet visible={showPortfolio || !!closing} onClose={() => { setShowPortfolio(false); setClosing(null); }} title={closing ? 'Close virtual position?' : 'Your portfolio'}>
-      {closing ? <><Label muted>The position will close at the fixed simulated quote. Your reserved funds will return to your wallet, less the closing fee.</Label><PrimaryButton label="Confirm" tone="light" onPress={() => { close(closing); setClosing(null); }} /><GhostButton label="Cancel" tone="light" onPress={() => setClosing(null)} /></> : <>
-      <Row>{['Open positions', 'History'].map(v => <Chip key={v} label={v} selected={portfolio === v} onPress={() => setPortfolio(v)} />)}</Row>
-      {portfolio === 'Open positions' ? wallet.positions.length ? wallet.positions.map(p => <View key={p.id} style={{ paddingVertical: 16, gap: 16, borderBottomWidth: 1, borderColor: colors.sheetBorder }}><Row><View style={{ flex: 1 }}><Label bold>{p.symbol} · {p.direction.toUpperCase()}</Label><Label muted size={11}>{p.quantity} units @ {p.entry}</Label></View><Label bold color={pnl(p) < 0 ? colors.sheetDown : colors.sheetUp}>{pnl(p) < 0 ? '↘ ' : '↗ '}{money(pnl(p))}</Label></Row><Label muted size={11}>{money(p.entry * p.quantity)} reserved · SL {p.stopLoss || '—'} · TP {p.takeProfit || '—'}</Label><GhostButton tone="light" label="Close position" onPress={() => setClosing(p.id)} /></View>) : <ContentState kind="empty" tone="light" title="Your first trade starts here" detail="Choose a market and open a virtual position. Your real money stays out of it." /> : wallet.history.length ? wallet.history.map(p => <Row key={p.id}><View style={{ flex: 1 }}><Label bold>{p.symbol} · {p.direction.toUpperCase()}</Label><Label muted size={11}>{p.quantity} units · {new Date(p.closed!).toLocaleDateString()}</Label></View><Label color={(p.pnl || 0) < 0 ? colors.sheetDown : colors.sheetUp}>{(p.pnl || 0) < 0 ? '↘ ' : '↗ '}{money(p.pnl || 0)}</Label></Row>) : <ContentState kind="empty" tone="light" title="A clean trading journal" detail="Closed positions appear here with realized profit or loss, including fees." />}
-      </>}
-    </Sheet>
-  </SafeAreaView>;
+const displayOrder = ['EUR/USD', 'BTC/USD', 'USD/JPY', 'WTI/USD', 'GBP/USD', 'XAU/USD', 'SPX/USD'];
+const markets = displayOrder.map(symbol => assets.find(asset => asset.symbol === symbol)!);
+const terminal = { bg: '#0C100F', surface: '#151B18', line: '#29332D', text: '#F4F6EF', muted: '#A0AAA2', mint: '#6EE7BE', coral: '#FF9DA5' };
+
+export default function Trade() {
+  return <ThemeSurface tone="dark"><TradeWorkspace /></ThemeSurface>;
 }
-const styles = StyleSheet.create({ workspace: { width: '100%', alignSelf: 'center', flex: 1, gap: 16 }, hero: { paddingHorizontal: 22, paddingTop: 16, paddingBottom: 16, gap: 24 } });
+
+function TradeWorkspace() {
+  const { loaded, wallet, storageError } = useWorkspace();
+  const [asset, setAsset] = useState(markets[0]);
+  const [direction, setDirection] = useState<Direction | null>(null);
+  const [marketInfo, setMarketInfo] = useState(false);
+  const [search, setSearch] = useState('');
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  const marketRail = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const [reveal] = useState(() => new Animated.Value(1));
+  const visual = marketVisual(asset);
+  const wide = width > navigationLayout.wideBreakpoint;
+  const columns = width > 820;
+  const bottomSpace = wide ? insets.bottom + 12 : tabBarClearance(insets.bottom) + 8;
+  const cardWidth = width < 360 ? 106 : 114;
+  const currency = asset.symbol === 'USD/JPY' ? 'JPY' : 'USD';
+  const quote = `${currency === 'JPY' ? '¥' : '$'}${asset.price.toLocaleString('en-US', { minimumFractionDigits: asset.precision, maximumFractionDigits: asset.precision })}`;
+  const selectMarket = (next: Asset) => {
+    if (next.symbol !== asset.symbol) { lightHaptic(); setAsset(next); }
+    const index = markets.findIndex(item => item.symbol === next.symbol);
+    marketRail.current?.scrollTo({ x: Math.max(0, index * (cardWidth + 10) - cardWidth), animated: reducedMotion === false });
+  };
+
+  useEffect(() => {
+    if (reducedMotion !== false) { reveal.setValue(1); return; }
+    reveal.setValue(0);
+    const animation = Animated.timing(reveal, { toValue: 1, duration: 240, useNativeDriver: Platform.OS !== 'web', isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [asset.symbol, reducedMotion, reveal]);
+
+  return <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
+    <StatusBar style="light" />
+    <View style={{ paddingTop: insets.top + 12, paddingBottom: 12, paddingHorizontal: 20 }}>
+      <Row style={styles.header}>
+        <View style={{ flex: 1, gap: 1 }}><Row style={{ justifyContent: 'flex-start', gap: 4 }}><Label bold size={18} color={terminal.text}>pipwise</Label><View style={styles.brandDot} /></Row><Label size={width < 360 ? 8 : 9} color={terminal.muted} style={{ letterSpacing: width < 360 ? 0.4 : 1.2 }}>THE TRADING ROOM</Label></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="View virtual portfolio" onPress={() => router.push('/portfolio')} style={({ pressed }) => [styles.wallet, { opacity: pressed ? 0.65 : 1 }]}>
+          <Icon name="wallet-outline" color={terminal.mint} size={17} /><View><Label size={8} color={terminal.muted}>VIRTUAL EQUITY</Label><Label bold size={12} color={terminal.text}>{money(summary(wallet).equity)}</Label></View>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Explore Pro" onPress={() => router.push('/paywall')} style={({ pressed }) => [styles.pro, { opacity: pressed ? 0.65 : 1 }]}><Icon name="sparkles" color="#E8F479" size={19} /></Pressable>
+      </Row>
+    </View>
+
+    {!loaded ? <LoadingState /> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ width: '100%', maxWidth: 1160, alignSelf: 'center', paddingTop: 4, paddingBottom: bottomSpace + 116, gap: 16 }}>
+      {storageError ? <View style={{ paddingHorizontal: 20 }}><ErrorState message={storageError} /></View> : null}
+      <Row style={{ paddingHorizontal: 20, alignItems: 'center' }}>
+        <View style={{ flex: 1 }}><Text style={[styles.title, { fontSize: width < 360 ? 19 : 22 }]}>Your market. Your move.</Text><Label size={10} color={terminal.muted}>A real feel. With virtual funds.</Label></View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Find a practice market" onPress={() => setMarketInfo(true)} style={({ pressed }) => [styles.search, { opacity: pressed ? 0.65 : 1 }]}><Icon name="search-outline" size={21} color={terminal.text} /></Pressable>
+      </Row>
+
+      <ScrollView ref={marketRail} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 10 }}>
+        {markets.map(item => {
+          const identity = marketVisual(item);
+          const selected = item.symbol === asset.symbol;
+          const foreground = selected ? identity.ink : terminal.text;
+          return <Pressable key={item.symbol} accessibilityRole="tab" accessibilityLabel={`${item.symbol}, ${identity.label}`} accessibilityState={{ selected }} aria-selected={selected} onPress={() => selectMarket(item)} style={({ pressed }) => [styles.marketCard, { width: cardWidth, backgroundColor: selected ? identity.color : identity.tint, borderColor: selected ? identity.color : '#FFFFFF0D', transform: [{ scale: pressed && reducedMotion === false ? 0.97 : 1 }], opacity: pressed ? 0.8 : 1 }]}>
+            <Row><MarketBadge asset={item} size={30} paired /><Icon name={selected ? 'checkmark-circle' : 'arrow-forward'} size={17} color={selected ? identity.ink : identity.color} /></Row>
+            <View style={{ gap: 1 }}><Label bold size={12} color={foreground}>{item.symbol}</Label><Label size={9} color={selected ? '#343A34' : '#BEC5BF'}>{identity.label}</Label></View>
+          </Pressable>;
+        })}
+      </ScrollView>
+
+      <View style={{ paddingHorizontal: 16, flexDirection: columns ? 'row' : 'column', alignItems: 'stretch', gap: 14 }}>
+        <Animated.View style={[styles.quoteCard, { flex: columns ? 0.38 : undefined, opacity: reveal, transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] }]}>
+          <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden style={styles.watermark}><Text allowFontScaling={false} style={{ fontSize: 126, lineHeight: 150, fontFamily: fonts.extraBold, color: visual.color, opacity: 0.09 }}>{visual.mark}</Text></View>
+          <Row><Row style={{ justifyContent: 'flex-start', gap: 9 }}><MarketBadge asset={asset} size={34} paired /><View><Label bold size={13} color={terminal.text}>{visual.label}</Label><Label size={9} color={terminal.muted}>{asset.symbol} · {asset.category}</Label></View></Row><View style={[styles.change, { backgroundColor: asset.change >= 0 ? '#1B342A' : '#39252B' }]}><Icon name={asset.change >= 0 ? 'trending-up' : 'trending-down'} size={13} color={asset.change >= 0 ? terminal.mint : terminal.coral} /><Label bold size={10} color={asset.change >= 0 ? terminal.mint : terminal.coral}>{asset.change >= 0 ? '+' : ''}{asset.change.toFixed(2)}%</Label></View></Row>
+          <View style={{ gap: 2, marginTop: columns ? 28 : 10 }}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[styles.price, { fontSize: width < 360 ? 34 : columns ? 40 : 39 }]}>{quote}</Text><Row style={{ justifyContent: 'flex-start', gap: 6 }}><View style={[styles.statusDot, { backgroundColor: visual.color }]} /><Label size={9} color={terminal.muted}>Fixed demo quote · {currency}</Label></Row></View>
+          {columns && <View style={{ marginTop: 'auto', paddingTop: 40, gap: 10 }}><View style={{ height: 1, backgroundColor: terminal.line }} /><Label size={12} color={terminal.muted}>One market. A thousand ways to learn.</Label><Label size={10} color={terminal.muted}>Explore the chart, switch timeframes and practice your next idea with virtual funds.</Label></View>}
+        </Animated.View>
+
+        <View style={[styles.chartCard, { flex: columns ? 0.62 : undefined }]}>
+          <TradingChart key={asset.symbol} asset={asset} referenceUI terminal accentColor={visual.color} plotHeight={columns ? 350 : Math.max(210, Math.min(300, height - 610))} />
+          <Row style={styles.chartCaption}><Row style={{ justifyContent: 'flex-start', gap: 5 }}><Icon name="shield-checkmark-outline" size={12} color={terminal.mint} /><Label size={8} color={terminal.muted}>SIMULATED MARKET</Label></Row><Label size={8} color={terminal.muted}>Touch chart to inspect</Label></Row>
+        </View>
+      </View>
+
+      <Pressable accessibilityRole="button" accessibilityLabel="About the practice markets" onPress={() => setMarketInfo(true)} style={({ pressed }) => [styles.practiceNote, { opacity: pressed ? 0.65 : 1 }]}><View style={styles.noteIcon}><Icon name="flash-outline" color={terminal.mint} size={19} /></View><View style={{ flex: 1 }}><Label bold size={11} color={terminal.text}>Build your edge, one practice at a time.</Label><Label size={9} color={terminal.muted}>7 markets · Virtual funds · No real-money orders</Label></View><Icon name="arrow-forward" color={terminal.muted} size={17} /></Pressable>
+    </ScrollView>}
+
+    {loaded && <View style={[styles.footer, { paddingBottom: bottomSpace + 10, left: insets.left, right: insets.right }]}><Row style={{ width: '100%', maxWidth: 1120, alignSelf: 'center', gap: 12 }}><TradeAction direction="sell" onPress={() => { lightHaptic(); setDirection('sell'); }} /><TradeAction direction="buy" onPress={() => { lightHaptic(); setDirection('buy'); }} /></Row></View>}
+
+    <Sheet visible={marketInfo} title="Find your market" onClose={() => setMarketInfo(false)}>
+      <Label muted size={12}>Seven markets. Your own practice space. Prices and charts are simulated examples.</Label>
+      <AppInput label="Find a market" value={search} onChangeText={setSearch} placeholder="Try Bitcoin, gold or EUR/USD" />
+      {markets.filter(item => `${item.symbol} ${item.name}`.toLowerCase().includes(search.toLowerCase())).map(item => <Pressable key={item.symbol} accessibilityRole="button" accessibilityLabel={`Select ${item.symbol}`} onPress={() => { selectMarket(item); setMarketInfo(false); }} style={({ pressed }) => ({ minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1, borderColor: '#E1E6DE', opacity: pressed ? 0.65 : 1 })}><MarketBadge asset={item} size={36} paired /><View style={{ flex: 1 }}><Label bold color="#202622">{item.symbol}</Label><Label muted size={11}>{marketVisual(item).label}</Label></View><Icon name={item.symbol === asset.symbol ? 'checkmark-circle' : 'arrow-forward'} color="#202622" /></Pressable>)}
+      {!markets.some(item => `${item.symbol} ${item.name}`.toLowerCase().includes(search.toLowerCase())) && <Label muted>No matching markets. Try a symbol or market name.</Label>}
+      <Label muted size={10}>Virtual funds only. Practice orders reserve full collateral with no leverage. Live market data and brokerage execution are not connected.</Label>
+    </Sheet>
+    <OrderBottomSheet key={`${asset.symbol}-${direction}`} asset={asset} direction={direction} onClose={() => setDirection(null)} />
+  </View>;
+}
+
+function TradeAction({ direction, onPress }: { direction: Direction; onPress: () => void }) {
+  const buy = direction === 'buy';
+  const color = buy ? '#12241B' : terminal.coral;
+  return <Pressable accessibilityRole="button" accessibilityLabel={buy ? 'Buy' : 'Sell'} onPress={onPress} style={({ pressed }) => [styles.tradeAction, { backgroundColor: buy ? terminal.mint : '#302027', borderColor: buy ? terminal.mint : '#69404B', opacity: pressed ? 0.7 : 1 }]}><Icon name={buy ? 'arrow-up' : 'arrow-down'} size={20} color={color} /><Label bold size={17} color={color}>{buy ? 'Buy' : 'Sell'}</Label><Icon name="arrow-forward" size={17} color={color} /></Pressable>;
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: terminal.bg },
+  header: { width: '100%', maxWidth: 1120, alignSelf: 'center', gap: 10 },
+  brandDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: terminal.mint, marginTop: 9 },
+  wallet: { minHeight: 44, paddingHorizontal: 11, borderRadius: 16, borderWidth: 1, borderColor: terminal.line, backgroundColor: terminal.surface, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pro: { width: 44, height: 44, borderRadius: 16, borderWidth: 1, borderColor: '#3B422A', backgroundColor: '#23291D', alignItems: 'center', justifyContent: 'center' },
+  title: { fontFamily: fonts.extraBold, fontSize: 22, lineHeight: 30, color: terminal.text, letterSpacing: -0.8 },
+  search: { width: 44, height: 44, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: terminal.surface, borderWidth: 1, borderColor: terminal.line },
+  marketCard: { minHeight: 104, borderRadius: 22, borderWidth: 1, padding: 13, justifyContent: 'space-between', gap: 12 },
+  quoteCard: { padding: 17, backgroundColor: terminal.surface, borderRadius: 25, borderWidth: 1, borderColor: terminal.line, overflow: 'hidden' },
+  watermark: { position: 'absolute', right: 0, top: 4, transform: [{ rotate: '-14deg' }] },
+  change: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 10, paddingVertical: 5, paddingHorizontal: 7 },
+  price: { color: terminal.text, fontFamily: fonts.extraBold, lineHeight: 51, letterSpacing: -1.7, fontVariant: ['tabular-nums'] },
+  statusDot: { width: 5, height: 5, borderRadius: 3 },
+  chartCard: { padding: 12, gap: 7, backgroundColor: terminal.surface, borderRadius: 25, borderWidth: 1, borderColor: terminal.line },
+  chartCaption: { paddingTop: 7, borderTopWidth: 1, borderColor: terminal.line, gap: 6, flexWrap: 'wrap' },
+  practiceNote: { marginHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  noteIcon: { width: 36, height: 36, borderRadius: 13, backgroundColor: '#1A2D24', alignItems: 'center', justifyContent: 'center' },
+  footer: { position: 'absolute', bottom: 0, backgroundColor: terminal.bg, paddingHorizontal: 18, paddingVertical: 10, borderTopWidth: 1, borderColor: terminal.line },
+  tradeAction: { flex: 1, minHeight: 57, borderRadius: 20, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+});

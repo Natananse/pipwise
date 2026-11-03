@@ -20,9 +20,12 @@ const palette = {
   overlay: '#00000099', transparent: 'transparent',
 };
 const light = {
-  ...palette, bg: palette.sheet, card: palette.sheet, raised: palette.sheetRaised,
-  text: palette.sheetText, sub: palette.sheetSub, border: palette.sheetBorder,
-  danger: palette.sheetDown, up: palette.sheetUp, down: palette.sheetDown,
+  ...palette, bg: '#F4F6F1', card: '#FFFFFF', raised: '#EBEFE7',
+  text: '#202622', sub: '#68736A', border: '#E1E6DE',
+  primary: '#202622', onPrimary: '#FFFFFF',
+  sheet: '#FFFFFF', sheetText: '#202622', sheetSub: '#68736A', sheetBorder: '#E1E6DE', sheetRaised: '#F0F3EC', sheetUp: '#138360', sheetDown: '#C44850',
+  tab: '#191D1B', activeTab: '#F5F7F2', onActiveTab: '#191D1B',
+  danger: '#C44850', up: '#138360', down: '#C44850',
 };
 const dark: typeof light = {
   ...palette, bg: palette.darkBg, card: palette.darkSurface, raised: palette.darkRaised,

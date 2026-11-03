@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { View } from "react-native";
-import { Asset, money, price } from "../lib/market";
+import { Asset, money, price, usdNotional } from "../lib/market";
 import { Direction, feeRate } from "../lib/simulator";
 import { useWorkspace } from "../lib/workspace";
 import { useTheme } from "../lib/theme";
@@ -36,7 +36,8 @@ export function OrderBottomSheet({
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const q = Number(quantity);
-  const value = q * asset.price;
+  const value = usdNotional(asset, q);
+  const unitValue = usdNotional(asset, 1);
   const fee = value * feeRate;
   const close = () => {
     setSuccess(false);
@@ -100,7 +101,7 @@ export function OrderBottomSheet({
           <Row>
             <Label muted>Simulated entry price</Label>
             <Label size={24} bold>
-              {price(asset)}
+              {price(asset)} {asset.symbol.split('/')[1]}
             </Label>
           </Row>
           {review ? (
@@ -135,7 +136,7 @@ export function OrderBottomSheet({
                     setQuantity(
                       (
                         (wallet.cash * 0.25) /
-                        (asset.price * (1 + feeRate))
+                        (unitValue * (1 + feeRate))
                       ).toFixed(5),
                     )
                   }
@@ -148,7 +149,7 @@ export function OrderBottomSheet({
                     setQuantity(
                       (
                         (wallet.cash * 0.5) /
-                        (asset.price * (1 + feeRate))
+                        (unitValue * (1 + feeRate))
                       ).toFixed(5),
                     )
                   }

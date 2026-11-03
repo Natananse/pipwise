@@ -62,6 +62,15 @@ export const assets: Asset[] = [
     mark: "S&P",
     precision: 2,
   },
+  {
+    symbol: "USD/JPY",
+    name: "US Dollar / Japanese Yen",
+    category: "Forex",
+    price: 157.849,
+    change: -0.18,
+    mark: "¥",
+    precision: 3,
+  },
 ];
 export type Candle = {
   open: number;
@@ -107,3 +116,8 @@ export const money = (v: number) =>
     maximumFractionDigits: 2,
   });
 export const price = (a: Asset) => a.price.toFixed(a.precision);
+
+/** USD-base FX quantities already represent dollars; other supported assets quote in USD. */
+export function usdNotional(asset: Asset, quantity: number) {
+  return asset.symbol.startsWith('USD/') ? quantity : asset.price * quantity;
+}

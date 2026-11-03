@@ -1,111 +1,51 @@
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useMemo, useState } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { EquityCurve } from '../../components/EquityCurve';
-import { SegmentedControl } from '../../components/SegmentedControl';
-import { AppButton, Chip, EmptyState, ErrorState, GlassCard, Icon, Label, LoadingState, PracticeLabel, Row, WorkspaceHeader } from '../../components/design';
-import { portfolioAnalytics } from '../../lib/analytics';
-import { assets, money } from '../../lib/market';
-import { initialWallet, pnl, Position } from '../../lib/simulator';
-import { fonts, ThemeSurface, useTheme } from '../../lib/theme';
+import React, { useState } from 'react';
+import { Pressable, Switch, View, useWindowDimensions } from 'react-native';
+import { AppButton, Icon, Label, LoadingState, Row } from '../../components/design';
+import { PredictionChart } from '../../components/PredictionChart';
+import { ReferenceCard, ReferenceScreen, referenceColors as c } from '../../components/reference';
+import { chartPracticeRound, practiceRoundCount, Prediction } from '../../lib/chartPractice';
+import { ThemeSurface } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
 
-const signedMoney = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${money(Math.abs(value))}`;
-const optionalMoney = (value: number | null) => value === null ? '—' : signedMoney(value);
-
 export default function Analyse() {
-  return <ThemeSurface tone="dark"><AnalyticsDashboard /></ThemeSurface>;
+  const { loaded } = useWorkspace();
+  return <ThemeSurface tone="light">{loaded ? <ChartPractice /> : <LoadingState />}</ThemeSurface>;
 }
-
-function AnalyticsDashboard() {
-  const { wallet, loaded, storageError, t } = useWorkspace();
-  const { colors } = useTheme();
-  const { width } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const wide = width > 1050;
-  const [section, setSection] = useState('Open positions');
-  const [filter, setFilter] = useState('All trades');
-  const [limit, setLimit] = useState(10);
-  const stats = useMemo(() => portfolioAnalytics(wallet), [wallet]);
-  const history = useMemo(() => [...stats.chronological].reverse().filter(p =>
-    filter === 'Winners' ? (p.pnl ?? 0) > 0 : filter === 'Losers' ? (p.pnl ?? 0) < 0 : filter === 'Breakeven' ? (p.pnl ?? 0) === 0 : true), [stats.chronological, filter]);
-  const positions = section === 'Open positions' ? wallet.positions : history;
-  const gain = stats.equity - initialWallet.cash;
-  const metrics = [
-    { label: 'Realized P&L', value: signedMoney(stats.realized), detail: 'Closed trades · after fees', color: stats.realized < 0 ? colors.down : colors.up },
-    { label: 'Open P&L', value: signedMoney(stats.unrealized), detail: `${wallet.positions.length} open positions · before fees`, color: stats.unrealized < 0 ? colors.down : colors.up },
-    { label: 'Win rate', value: stats.winRate === null ? '—' : `${stats.winRate.toFixed(1)}%`, detail: `${stats.wins} wins / ${wallet.history.length} closed trades`, color: colors.text },
-    { label: 'Profit factor', value: stats.profitFactor === null ? '—' : stats.profitFactor.toFixed(2), detail: stats.grossLoss ? 'Gross profit / gross loss' : 'Needs a losing trade', color: colors.text },
-  ];
-  return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
-    <StatusBar style="light" />
-    {!loaded ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: wide ? 40 : 110 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
-      <WorkspaceHeader title={t('Analyse')} subtitle="PORTFOLIO & PERFORMANCE" />
-      <PracticeLabel />
-      {!!storageError && <ErrorState message={storageError} />}
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16 }}>
-        <GlassCard style={{ flex: 1, padding: 24 }}>
-          <Row><Label muted size={12}>Total account equity</Label><Icon name="wallet-outline" color={colors.primary} /></Row>
-          <Label size={width < 360 ? 32 : 40} bold style={{ fontFamily: fonts.extraBold, letterSpacing: -1.5 }}>{money(stats.equity)}</Label>
-          <Row style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}><Label bold size={13} color={gain < 0 ? colors.down : colors.up}>{signedMoney(gain)} ({(gain / initialWallet.cash * 100).toFixed(2)}%)</Label><Label muted size={11}>all time</Label></Row>
-          <Row style={{ flexWrap: 'wrap', borderTopWidth: 1, borderColor: colors.border, paddingTop: 16 }}><View><Label muted size={11}>Available cash</Label><Label bold>{money(wallet.cash)}</Label></View><View><Label muted size={11}>Reserved capital</Label><Label bold>{money(stats.reserved)}</Label></View></Row>
-        </GlassCard>
-        <View style={{ flex: wide ? 1.6 : undefined, flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-          {metrics.map(metric => <GlassCard key={metric.label} style={{ flexBasis: width < 360 ? '100%' : '46%', flexGrow: 1, padding: 18, gap: 8 }}><Label muted size={11}>{metric.label}</Label><Label bold size={24} color={metric.color}>{metric.value}</Label><Label muted size={10}>{metric.detail}</Label></GlassCard>)}
-        </View>
-      </View>
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 16, alignItems: 'stretch' }}>
-        <GlassCard style={{ flex: wide ? 1.7 : undefined }}>
-          <Row><View style={{ flex: 1 }}><Label bold size={20}>Equity curve</Label><Label muted size={11}>All-time closed results, net of trading fees</Label></View><Icon name="pulse-outline" color={colors.primary} /></Row>
-          <Label bold size={28}>{money(stats.curve[stats.curve.length - 1])}</Label>
-          <EquityCurve values={stats.curve} />
-          <Label muted size={11}>{wallet.history.length ? `Current equity also includes ${signedMoney(stats.unrealized)} open P&L and ${money(stats.openFees)} in open entry fees. The curve records balances when trades close.` : 'Your curve begins at $10,000. Close a practice trade to record your first result.'}</Label>
-        </GlassCard>
-        <GlassCard style={{ flex: wide ? 1 : undefined }}>
-          <Label bold size={20}>Trade outcomes</Label>
-          <Label bold size={36} color={colors.primary}>{stats.winRate === null ? '—' : `${stats.winRate.toFixed(1)}%`}<Label muted size={12}> win rate</Label></Label>
-          <View accessible accessibilityLabel={`${stats.wins} winning, ${stats.losses} losing, ${stats.breakeven} breakeven trades`} style={{ height: 12, borderRadius: 6, overflow: 'hidden', flexDirection: 'row', backgroundColor: colors.raised }}>
-            {stats.wins > 0 && <View style={{ flex: stats.wins, backgroundColor: colors.up }} />}
-            {stats.losses > 0 && <View style={{ flex: stats.losses, backgroundColor: colors.down }} />}
-            {stats.breakeven > 0 && <View style={{ flex: stats.breakeven, backgroundColor: colors.sub }} />}
-          </View>
-          {[['Winning trades', stats.wins, colors.up], ['Losing trades', stats.losses, colors.down], ['Breakeven trades', stats.breakeven, colors.sub]].map(([label, count, color]) => <Row key={label}><Row><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: color as string }} /><Label muted size={12}>{label}</Label></Row><Label bold>{count}</Label></Row>)}
-          <Label muted size={11}>A win is a closed trade with positive P&L after fees. Breakeven trades count toward the total.</Label>
-        </GlassCard>
-      </View>
-      <GlassCard>
-        <Label bold size={20}>Performance statistics</Label>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 24 }}>
-          {[
-            ['Average win', optionalMoney(stats.averageWin)], ['Average loss', optionalMoney(stats.averageLoss)],
-            ['Best trade', optionalMoney(stats.bestTrade)], ['Worst trade', optionalMoney(stats.worstTrade)],
-            ['Average trade', optionalMoney(stats.expectancy)], ['Max. closed drawdown', wallet.history.length ? `${stats.maxDrawdown.toFixed(2)}%` : '—'],
-          ].map(([label, value]) => <View key={label} style={{ flexBasis: wide ? '28%' : '43%', flexGrow: 1, gap: 8 }}><Label muted size={11}>{label}</Label><Label bold size={18}>{value}</Label></View>)}
-        </View>
-        <Label muted size={10}>Statistics use all closed trades after fees. Drawdown measures the largest peak-to-trough drop in the closed-trade balance; intratrade movements are not recorded.</Label>
-      </GlassCard>
-      <GlassCard style={{ padding: 18 }}>
-        <Row><Label bold size={20}>Your portfolio</Label><Label muted size={11}>{positions.length} {section === 'Open positions' ? 'open' : 'results'}</Label></Row>
-        <SegmentedControl options={['Open positions', 'Trade history']} value={section} onChange={value => { setSection(value); setLimit(10); }} />
-        {section === 'Trade history' && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{['All trades', 'Winners', 'Losers', 'Breakeven'].map(value => <Chip key={value} label={value} selected={filter === value} onPress={() => { setFilter(value); setLimit(10); }} />)}</ScrollView>}
-        {!positions.length ? <EmptyState icon={section === 'Open positions' ? 'layers-outline' : 'receipt-outline'} title={section === 'Open positions' ? 'No open positions' : filter === 'All trades' ? 'Your journal starts here' : 'No matching trades'} detail={section === 'Open positions' ? 'Open a virtual trade from the Trade tab to track your positions here.' : 'Closed trades appear here with their results after fees. Try another filter or close a practice position.'} /> : positions.slice(0, limit).map(position => <PositionRow key={position.id} position={position} closed={section === 'Trade history'} />)}
-        {positions.length > limit && <AppButton variant="secondary" label={`Show more (${positions.length - limit} remaining)`} onPress={() => setLimit(value => value + 10)} />}
-        <AppButton variant="secondary" label="Go to trading" icon="arrow-forward" onPress={() => router.push('/practice')} />
-      </GlassCard>
-    </ScrollView>}
-  </SafeAreaView>;
+function ChartPractice() {
+  const { predictionAnswers, answerPrediction, update } = useWorkspace();
+  const [current, setCurrent] = useState(() => {
+    const next = Array.from({ length: practiceRoundCount }, (_, index) => index).find(index => !predictionAnswers[chartPracticeRound(index).id]);
+    return next ?? 0;
+  });
+  const [indicators, setIndicators] = useState(false);
+  const { width, height } = useWindowDimensions();
+  const round = chartPracticeRound(current);
+  const answer = predictionAnswers[round.id];
+  const answered = !!answer;
+  const allRounds = Array.from({ length: practiceRoundCount }, (_, index) => chartPracticeRound(index));
+  const completed = allRounds.filter(item => predictionAnswers[item.id]);
+  const score = completed.filter(item => predictionAnswers[item.id] === item.result).length;
+  const choose = (direction: Prediction) => { if (!answered) answerPrediction(round.id, direction); };
+  const next = () => { if (current < practiceRoundCount - 1) setCurrent(value => value + 1); else { update({ predictionAnswers: {} }); setCurrent(0); } };
+  return <ReferenceScreen contentStyle={{ paddingHorizontal: 16, paddingTop: 14, gap: 18 }} footer={answered ? <AppButton label={current < practiceRoundCount - 1 ? 'Next chart' : 'Practice again'} onPress={next} /> : <Row style={{ gap: 14 }}><PredictionButton label="↓ Down" color="#ED7275" onPress={() => choose('down')} /><PredictionButton label="↑ Up" color="#61B57B" onPress={() => choose('up')} /></Row>}>
+    <Row style={{ gap: 16 }}><View style={{ flex: 1, height: 12, borderRadius: 8, backgroundColor: '#EFF1F4', overflow: 'hidden' }}><View style={{ height: 12, width: `${(current + 1) / practiceRoundCount * 100}%`, backgroundColor: '#2FCA64', borderRadius: 8 }} /></View><Label muted size={13}>{current + 1}/{practiceRoundCount}</Label></Row>
+    <View style={{ marginHorizontal: -10, borderRadius: 22, overflow: 'hidden', backgroundColor: '#315657' }}>
+      <Row style={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 0, justifyContent: 'flex-start' }}><Label size={14} bold color="white">{round.asset.symbol}</Label><View style={{ paddingHorizontal: 8, paddingVertical: 2, backgroundColor: '#F6F7FA', borderRadius: 6 }}><Label bold size={10} color={c.ink}>{round.frame.toUpperCase()}</Label></View><Label size={8} color="#CBDDDA">HISTORICAL PRACTICE</Label></Row>
+      <PredictionChart candles={answered ? [...round.visible, ...round.future] : round.visible} precision={round.asset.precision} indicators={indicators} revealed={answered} split={round.visible.length} height={width > 1050 ? 390 : Math.max(290, Math.min(400, height - 430))} />
+    </View>
+    <View style={{ alignItems: 'flex-end', gap: 5 }}><Switch accessibilityLabel="Show 7-period moving average" value={indicators} onValueChange={setIndicators} trackColor={{ false: '#F06C35', true: c.blue }} thumbColor="white" /><Label bold size={10} color={c.ink}>Turn {indicators ? 'off' : 'on'} technical indicators</Label>{indicators && <Label muted size={9}>Yellow line · 7-period moving average</Label>}</View>
+    <Label bold size={20} color="#111820">Will {round.asset.symbol} go Up or Down?</Label>
+    <Label muted size={11}>Read the visible chart, then reveal the next five simulated candles. This is a practice exercise with no wallet stakes.</Label>
+    {answered ? <ReferenceCard style={{ backgroundColor: answer === round.result ? '#EDF9F1' : '#FFF3F2', borderColor: answer === round.result ? '#C8EBD5' : '#F6D8D6', padding: 16 }}>
+      <Row><Icon name={answer === round.result ? 'checkmark-circle' : 'bulb-outline'} color={answer === round.result ? '#23A861' : '#D9605F'} size={24} /><Label bold size={16} style={{ flex: 1 }} color={c.ink}>{answer === round.result ? 'Good observation!' : 'A useful learning moment.'}</Label></Row>
+      <Label size={12} color={c.ink}>You chose {answer.toUpperCase()}. The next five candles moved {round.result.toUpperCase()} by {Math.abs((round.exit / round.entry - 1) * 100).toFixed(2)}%. The dashed line marks where the hidden candles begin.</Label>
+      <Label size={11} muted>One chart pattern can lead to different outcomes. Review the context and repeat the exercise rather than treating the result as a trading signal.</Label>
+    </ReferenceCard> : null}
+    <Row><Label muted size={11}>Score: {score}/{completed.length} completed</Label><Pressable accessibilityRole="button" onPress={() => router.push('/portfolio')} style={{ minHeight: 44, justifyContent: 'center' }}><Label size={11} bold color={c.blue}>Portfolio analytics →</Label></Pressable></Row>
+    <Row style={{ justifyContent: 'center', flexWrap: 'wrap', gap: 6 }}>{allRounds.map((item, index) => <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={`Review chart ${index + 1}`} accessibilityState={{ selected: index === current }} onPress={() => setCurrent(index)} style={({ pressed }) => ({ width: 26, height: 32, borderRadius: 8, backgroundColor: index === current ? c.blue : predictionAnswers[item.id] ? '#E5F7EB' : '#F0F3F6', justifyContent: 'center', alignItems: 'center', opacity: pressed ? 0.6 : 1 })}><Label size={10} bold color={index === current ? 'white' : c.ink}>{index + 1}</Label></Pressable>)}</Row>
+  </ReferenceScreen>;
 }
-
-function PositionRow({ position: p, closed }: { position: Position; closed: boolean }) {
-  const { colors } = useTheme();
-  const asset = assets.find(a => a.symbol === p.symbol);
-  const result = closed ? p.pnl ?? 0 : pnl(p);
-  const date = new Date((closed ? p.closed : p.opened) || p.opened);
-  return <View style={{ paddingVertical: 16, gap: 10, borderTopWidth: 1, borderColor: colors.border }}>
-    <Row style={{ flexWrap: 'wrap' }}><Row><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}><Icon name={p.direction === 'buy' ? 'arrow-up' : 'arrow-down'} size={18} color={p.direction === 'buy' ? colors.up : colors.down} /></View><View><Label bold>{p.symbol}</Label><Label muted size={10}>{p.direction === 'buy' ? 'BUY / LONG' : 'SELL / SHORT'} · {p.quantity} units</Label></View></Row><View><Label bold color={result < 0 ? colors.down : result > 0 ? colors.up : colors.sub}>{signedMoney(result)}</Label><Label muted size={10} style={{ textAlign: 'right' }}>{closed ? result > 0 ? 'WIN · NET P&L' : result < 0 ? 'LOSS · NET P&L' : 'BREAKEVEN' : 'UNREALIZED · BEFORE FEES'}</Label></View></Row>
-    <Row style={{ flexWrap: 'wrap' }}><Label muted size={11}>Entry {p.entry.toFixed(asset?.precision ?? 2)}{!closed && asset ? ` · Mark ${asset.price.toFixed(asset.precision)}` : ''}</Label><Label muted size={10}>{closed ? 'Closed' : 'Opened'} {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Label></Row>
-    {!closed && <Label muted size={10}>Reserved {money(p.entry * p.quantity)} · SL {p.stopLoss ?? '—'} · TP {p.takeProfit ?? '—'}</Label>}
-  </View>;
+function PredictionButton({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => ({ flex: 1, minHeight: 58, backgroundColor: color, borderRadius: 16, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}><Label bold size={18} color="white">{label}</Label></Pressable>;
 }

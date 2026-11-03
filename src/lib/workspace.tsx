@@ -6,8 +6,9 @@ import { createPersistenceQueue } from './persistence';
 const am: Record<string, string> = { Trade: 'ግብይት', Learn: 'ይማሩ', Analyse: 'ትንታኔ', Top: 'ምርጥ', Profile: 'መገለጫ', Continue: 'ቀጥል', Back: 'ተመለስ', 'Trade Smarter. Practice Wiser.': 'በብልሃት ይገበያዩ። በጥበብ ይለማመዱ።', 'Start your journey': 'ጉዞዎን ይጀምሩ', 'Choose your language': 'ቋንቋዎን ይምረጡ', 'How experienced are you with trading?': 'በግብይት ምን ያህል ልምድ አለዎት?', 'Complete beginner': 'ሙሉ በሙሉ ጀማሪ', 'Know the basics': 'መሠረታዊ እውቀት አለኝ', Intermediate: 'መካከለኛ', Experienced: 'ልምድ ያለኝ', 'Which markets interest you?': 'የትኞቹ ገበያዎች ያስደስቱዎታል?', Forex: 'የውጭ ምንዛሬ', Cryptocurrency: 'ክሪፕቶ ምንዛሬ', 'Gold and Silver': 'ወርቅ እና ብር', 'Oil and Commodities': 'ነዳጅ እና ሸቀጦች', 'Stocks and Indices': 'አክሲዮኖች እና ኢንዴክሶች', 'What is your main goal?': 'ዋና ዓላማዎ ምንድን ነው?', 'Learn financial markets': 'የፋይናንስ ገበያዎችን መማር', 'Practice trading': 'ግብይትን መለማመድ', 'Improve strategies': 'ስልቶችን ማሻሻል', 'Understand market analysis': 'የገበያ ትንታኔን መረዳት', 'Welcome back': 'እንኳን ደህና መጡ', 'Create account': 'መለያ ይፍጠሩ', 'Sign in': 'ይግቡ', 'Email address': 'የኢሜይል አድራሻ', Password: 'የይለፍ ቃል', 'Continue in demo mode': 'በሙከራ ሁነታ ይቀጥሉ', 'Forgot password?': 'የይለፍ ቃል ረሱ?', 'Reset password': 'የይለፍ ቃል ቀይር', 'Your trading workspace': 'የእርስዎ የግብይት ቦታ', 'Virtual balance': 'ምናባዊ ቀሪ ሂሳብ', 'Available funds': 'የሚገኝ ገንዘብ', Equity: 'ጠቅላላ ሀብት', 'Open positions': 'ክፍት ግብይቶች', Buy: 'ግዛ', Sell: 'ሽጥ', Markets: 'ገበያዎች', 'Build your edge.': 'እውቀትዎን ያሳድጉ።', 'Market perspective.': 'የገበያ እይታ።', 'Learn from the leaders.': 'ከመሪዎች ይማሩ።', 'Make it yours.': 'ለእርስዎ ያበጁ።' };
 export type Language = 'en' | 'am';
 export type Preferences = { experience: string; markets: string[]; goal: string };
-type Data = { language: Language; preferences: Preferences; favorites: string[]; bookmarks: string[]; completed: string[]; notifications: boolean; wallet: Wallet };
-const defaults: Data = { language: 'en', preferences: { experience: '', markets: [], goal: '' }, favorites: ['EUR/USD', 'BTC/USD', 'XAU/USD'], bookmarks: [], completed: [], notifications: true, wallet: initialWallet };
+export type ProfilePreferences = { displayName: string; avatarId: 'trader' | 'bull' | 'owl' };
+type Data = { profile: ProfilePreferences; predictionAnswers: Record<string, 'up' | 'down'>; language: Language; preferences: Preferences; favorites: string[]; bookmarks: string[]; completed: string[]; notifications: boolean; wallet: Wallet };
+const defaults: Data = { profile: { displayName: '', avatarId: 'trader' }, predictionAnswers: {}, language: 'en', preferences: { experience: '', markets: [], goal: '' }, favorites: ['EUR/USD', 'BTC/USD', 'XAU/USD'], bookmarks: [], completed: [], notifications: true, wallet: initialWallet };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 const isStringArray = (value: unknown): value is string[] =>
@@ -33,6 +34,12 @@ export function parseWorkspaceData(raw: string): Data {
   }
   if (parsed.notifications !== undefined && typeof parsed.notifications !== 'boolean')
     throw new Error('Invalid notification preference.');
+  const profile = parsed.profile;
+  if (profile !== undefined && (!isRecord(profile) || typeof profile.displayName !== 'string'
+    || !['trader', 'bull', 'owl'].includes(String(profile.avatarId)))) throw new Error('Invalid saved profile.');
+  const predictionAnswers = parsed.predictionAnswers;
+  if (predictionAnswers !== undefined && (!isRecord(predictionAnswers)
+    || Object.values(predictionAnswers).some(value => value !== 'up' && value !== 'down'))) throw new Error('Invalid saved practice answers.');
   const wallet = parsed.wallet;
   if (wallet !== undefined && (!isRecord(wallet)
     || typeof wallet.cash !== 'number' || !Number.isFinite(wallet.cash)
@@ -99,6 +106,9 @@ function useWorkspaceState() {
     update({ [key]: list.includes(value) ? list.filter(x => x !== value) : [...list, value] });
   };
   return { ...data, loaded, initializationError, retryInitialization, storageError, update, persistOnboarding, toggle,
+    answerPrediction: (id: string, answer: 'up' | 'down') => {
+      if (!latest.current.predictionAnswers[id]) update({ predictionAnswers: { ...latest.current.predictionAnswers, [id]: answer } });
+    },
     t: (s: string) => data.language === 'am' ? am[s] || s : s,
     trade: (a: Asset, d: Direction, q: number, sl?: number, tp?: number) => update({ wallet: openOrder(latest.current.wallet, a, d, q, sl, tp) }),
     close: (id: string) => update({ wallet: closePosition(latest.current.wallet, id) }),

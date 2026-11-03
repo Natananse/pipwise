@@ -1,4 +1,4 @@
-import { Asset, assets } from "./market";
+import { Asset, assets, usdNotional } from "./market";
 export type Direction = "buy" | "sell";
 export type Position = {
   id: string;
@@ -24,12 +24,18 @@ export const initialWallet: Wallet = {
   history: [],
 };
 export const feeRate = 0.0002;
+function collateralUSD(p: Position) {
+  const asset = assets.find((a) => a.symbol === p.symbol)!;
+  return usdNotional({ ...asset, price: p.entry }, p.quantity);
+}
 export function pnl(p: Position, quote?: number) {
   const mark = quote ?? assets.find((a) => a.symbol === p.symbol)!.price;
-  return (mark - p.entry) * p.quantity * (p.direction === "buy" ? 1 : -1);
+  const quoteProfit = (mark - p.entry) * p.quantity * (p.direction === "buy" ? 1 : -1);
+  // For USD/JPY the price movement is in yen. Convert it at the current yen-per-dollar mark.
+  return p.symbol.startsWith('USD/') ? quoteProfit / mark : quoteProfit;
 }
 export function summary(w: Wallet) {
-  const reserved = w.positions.reduce((s, p) => s + p.entry * p.quantity, 0);
+  const reserved = w.positions.reduce((s, p) => s + collateralUSD(p), 0);
   const unrealized = w.positions.reduce((s, p) => s + pnl(p), 0);
   return {
     reserved,
@@ -48,7 +54,7 @@ export function openOrder(
 ): Wallet {
   if (!Number.isFinite(quantity) || quantity <= 0)
     throw new Error("Enter a quantity greater than zero.");
-  const value = quantity * asset.price;
+  const value = usdNotional(asset, quantity);
   const fee = value * feeRate;
   if (value + fee > w.cash)
     throw new Error("Insufficient virtual funds. Reduce your quantity.");
@@ -89,10 +95,9 @@ export function closePosition(w: Wallet, id: string): Wallet {
   const p = w.positions.find((p) => p.id === id);
   if (!p) throw new Error("Position already closed.");
   const gain = pnl(p);
-  const exitFee =
-    assets.find((a) => a.symbol === p.symbol)!.price * p.quantity * feeRate;
+  const exitFee = usdNotional(assets.find((a) => a.symbol === p.symbol)!, p.quantity) * feeRate;
   return {
-    cash: w.cash + p.entry * p.quantity + gain - exitFee,
+    cash: w.cash + collateralUSD(p) + gain - exitFee,
     positions: w.positions.filter((p) => p.id !== id),
     history: [
       { ...p, closed: new Date().toISOString(), pnl: gain - p.fee - exitFee },
