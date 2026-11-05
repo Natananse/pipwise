@@ -11,6 +11,7 @@ import { assets, money, usdNotional } from '../lib/market';
 import { initialWallet, pnl, Position } from '../lib/simulator';
 import { fonts, ThemeSurface, useTheme } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
+import { useDemoMarket } from '../lib/demoMarketProvider';
 
 const signedMoney = (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${money(Math.abs(value))}`;
 const optionalMoney = (value: number | null) => value === null ? '—' : signedMoney(value);
@@ -21,6 +22,7 @@ export default function Portfolio() {
 
 function AnalyticsDashboard() {
   const { wallet, loaded, storageError, close } = useWorkspace();
+  const { quotes, ready: pricesReady } = useDemoMarket({ active: true });
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -30,7 +32,7 @@ function AnalyticsDashboard() {
   const [limit, setLimit] = useState(10);
   const [closing, setClosing] = useState<Position | null>(null);
   const [closeError, setCloseError] = useState('');
-  const stats = useMemo(() => portfolioAnalytics(wallet), [wallet]);
+  const stats = useMemo(() => portfolioAnalytics(wallet, quotes), [wallet, quotes]);
   const history = useMemo(() => [...stats.chronological].reverse().filter(p =>
     filter === 'Winners' ? (p.pnl ?? 0) > 0 : filter === 'Losers' ? (p.pnl ?? 0) < 0 : filter === 'Breakeven' ? (p.pnl ?? 0) === 0 : true), [stats.chronological, filter]);
   const positions = section === 'Open positions' ? wallet.positions : history;
@@ -43,7 +45,7 @@ function AnalyticsDashboard() {
   ];
   return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
     <StatusBar style="dark" />
-    {!loaded ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: wide ? 40 : 110 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
+    {!loaded || !pricesReady ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: wide ? 40 : 110 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
       <AppButton label="Back to profile" variant="ghost" icon="arrow-back" onPress={() => router.replace('/profile')} /><WorkspaceHeader title="Portfolio analytics" subtitle="PORTFOLIO & PERFORMANCE" />
       <PracticeLabel />
       {!!storageError && <ErrorState message={storageError} />}
@@ -94,11 +96,11 @@ function AnalyticsDashboard() {
         {section === 'Trade history' && <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>{['All trades', 'Winners', 'Losers', 'Breakeven'].map(value => <Chip key={value} label={value} selected={filter === value} onPress={() => { setFilter(value); setLimit(10); }} />)}</ScrollView>}
         {!positions.length ? <EmptyState icon={section === 'Open positions' ? 'layers-outline' : 'receipt-outline'} title={section === 'Open positions' ? 'No open positions' : filter === 'All trades' ? 'Your journal starts here' : 'No matching trades'} detail={section === 'Open positions' ? 'Open a virtual trade from the Trade tab to track your positions here.' : 'Closed trades appear here with their results after fees. Try another filter or close a practice position.'} /> : positions.slice(0, limit).map(position => <PositionRow key={position.id} position={position} closed={section === 'Trade history'} onClose={() => { setCloseError(''); setClosing(position); }} />)}
         {positions.length > limit && <AppButton variant="secondary" label={`Show more (${positions.length - limit} remaining)`} onPress={() => setLimit(value => value + 10)} />}
-        <AppButton variant="secondary" label="Go to trading" icon="arrow-forward" onPress={() => router.push('/practice')} />
+        <AppButton variant="secondary" label="Go to trading" icon="arrow-forward" onPress={() => router.push({ pathname: '/(tabs)/practice', params: { mode: 'sample' } })} />
       </GlassCard>
     </ScrollView>}
     <Sheet visible={!!closing} title="Close virtual position?" onClose={() => setClosing(null)}>
-      {closing && <><Label bold>{closing.symbol} · {closing.direction.toUpperCase()} · {closing.quantity} units</Label><Label muted>This position will close at the fixed demo quote. Reserved collateral returns to your virtual cash balance, including the simulated result and less the closing fee.</Label><Label>Open P&L before fees: {signedMoney(pnl(closing))}</Label>{!!closeError && <ErrorState message={closeError} />}<AppButton label="Confirm close" variant="danger" onPress={() => { try { close(closing.id); setClosing(null); } catch (error) { setCloseError(error instanceof Error ? error.message : 'Could not close this position.'); } }} /><AppButton label="Keep position open" variant="secondary" onPress={() => setClosing(null)} /></>}
+      {closing && <><Label bold>{closing.symbol} · {closing.direction.toUpperCase()} · {closing.quantity} units</Label><Label muted>{closing.pricingSource === 'moving-demo-v1' ? 'This position will close at the current moving demo quote.' : 'This older position will close at its original fixed demo quote.'} Reserved collateral returns to your virtual cash balance, including the simulated result and less the closing fee.</Label><Label>Open P&L before fees: {signedMoney(pnl(closing, closing.pricingSource === 'moving-demo-v1' ? quotes[closing.symbol] : undefined))}</Label>{!!closeError && <ErrorState message={closeError} />}<AppButton label="Confirm close" variant="danger" onPress={() => { try { close(closing.id); setClosing(null); } catch (error) { setCloseError(error instanceof Error ? error.message : 'Could not close this position.'); } }} /><AppButton label="Keep position open" variant="secondary" onPress={() => setClosing(null)} /></>}
     </Sheet>
   </SafeAreaView>;
 }
@@ -106,11 +108,13 @@ function AnalyticsDashboard() {
 function PositionRow({ position: p, closed, onClose }: { position: Position; closed: boolean; onClose: () => void }) {
   const { colors } = useTheme();
   const asset = assets.find(a => a.symbol === p.symbol);
-  const result = closed ? p.pnl ?? 0 : pnl(p);
+  const { quotes } = useDemoMarket();
+  const mark = p.pricingSource === 'moving-demo-v1' ? quotes[p.symbol] : undefined;
+  const result = closed ? p.pnl ?? 0 : pnl(p, mark);
   const date = new Date((closed ? p.closed : p.opened) || p.opened);
   return <View style={{ paddingVertical: 16, gap: 10, borderTopWidth: 1, borderColor: colors.border }}>
-    <Row style={{ flexWrap: 'wrap' }}><Row><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}><Icon name={p.direction === 'buy' ? 'arrow-up' : 'arrow-down'} size={18} color={p.direction === 'buy' ? colors.up : colors.down} /></View><View><Label bold>{p.symbol}</Label><Label muted size={10}>{p.direction === 'buy' ? 'BUY / LONG' : 'SELL / SHORT'} · {p.quantity} units</Label></View></Row><View><Label bold color={result < 0 ? colors.down : result > 0 ? colors.up : colors.sub}>{signedMoney(result)}</Label><Label muted size={10} style={{ textAlign: 'right' }}>{closed ? result > 0 ? 'WIN · NET P&L' : result < 0 ? 'LOSS · NET P&L' : 'BREAKEVEN' : 'UNREALIZED · BEFORE FEES'}</Label></View></Row>
-    <Row style={{ flexWrap: 'wrap' }}><Label muted size={11}>Entry {p.entry.toFixed(asset?.precision ?? 2)}{!closed && asset ? ` · Mark ${asset.price.toFixed(asset.precision)}` : ''}</Label><Label muted size={10}>{closed ? 'Closed' : 'Opened'} {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Label></Row>
+    <Row style={{ flexWrap: 'wrap' }}><Row><View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: colors.raised, alignItems: 'center', justifyContent: 'center' }}><Icon name={p.direction === 'buy' ? 'arrow-up' : 'arrow-down'} size={18} color={p.direction === 'buy' ? colors.up : colors.down} /></View><View><Label bold>{p.symbol}</Label><Label muted size={10}>{p.direction === 'buy' ? 'BUY / LONG' : 'SELL / SHORT'} · {p.quantity} units · {p.pricingSource === 'moving-demo-v1' ? 'MOVING DEMO' : 'LEGACY FIXED'}</Label></View></Row><View><Label bold color={result < 0 ? colors.down : result > 0 ? colors.up : colors.sub}>{signedMoney(result)}</Label><Label muted size={10} style={{ textAlign: 'right' }}>{closed ? result > 0 ? 'WIN · NET P&L' : result < 0 ? 'LOSS · NET P&L' : 'BREAKEVEN' : 'UNREALIZED · BEFORE FEES'}</Label></View></Row>
+    <Row style={{ flexWrap: 'wrap' }}><Label muted size={11}>Entry {p.entry.toFixed(asset?.precision ?? 2)}{!closed && asset ? ` · Mark ${(mark ?? asset.price).toFixed(asset.precision)}` : ''}</Label><Label muted size={10}>{closed ? 'Closed' : 'Opened'} {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Label></Row>
     {!closed && <><Label muted size={10}>Reserved {money(asset ? usdNotional({ ...asset, price: p.entry }, p.quantity) : p.entry * p.quantity)} · SL {p.stopLoss ?? '—'} · TP {p.takeProfit ?? '—'}</Label><AppButton label="Close position" variant="secondary" compact onPress={onClose} /></>}
   </View>;
 }

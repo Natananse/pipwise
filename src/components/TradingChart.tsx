@@ -8,8 +8,17 @@ import { ContentState } from './ContentState';
 import { AppButton, Label, Row, Sheet } from './design';
 import { SegmentedControl } from './SegmentedControl';
 
-export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor }: {
+type ExternalChartData = {
+  candles: Candle[]; timeframe: string; loading: boolean; error: string;
+  onTimeframeChange: (timeframe: string) => void; onRetry: () => void; sample: boolean;
+  moving?: boolean;
+};
+type ChartLevel = { label: string; price: number; color: string };
+
+export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor, external, keyLevels = [] }: {
   asset: Asset; small?: boolean; plotHeight?: number; compactControls?: boolean; referenceUI?: boolean; terminal?: boolean; accentColor?: string;
+  external?: ExternalChartData;
+  keyLevels?: ChartLevel[];
 }) {
   const { colors } = useTheme();
   const tone = colors.text === colors.sheetText ? 'light' : 'dark';
@@ -19,22 +28,33 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const axisColor = terminal ? '#A0AAA2' : colors.sub;
   const controlColor = terminal ? '#F4F6EF' : colors.text;
   const controlSurface = terminal ? '#202923' : colors.raised;
-  const [candles, setCandles] = useState<Candle[]>([]);
-  const [frame, setFrame] = useState('1h');
-  const [mode, setMode] = useState(referenceUI ? 'Line' : 'Candles');
+  const [demoCandles, setCandles] = useState<Candle[]>([]);
+  const [demoFrame, setDemoFrame] = useState('1h');
+  const [mode, setMode] = useState(referenceUI && !external?.moving ? 'Line' : 'Candles');
   const [zoom, setZoom] = useState(referenceUI ? 80 : 36);
   const [offset, setOffset] = useState(0);
   const [cross, setCross] = useState<number | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [demoError, setError] = useState('');
+  const [demoLoading, setLoading] = useState(true);
   const [retry, setRetry] = useState(0);
   const [width, setWidth] = useState(320);
   const [controlsOpen, setControlsOpen] = useState(false);
   const [framesOpen, setFramesOpen] = useState(false);
   const [average, setAverage] = useState(false);
   const gradientId = useId().replace(/:/g, '');
+  const candles = external ? external.candles : demoCandles;
+  const frame = external?.timeframe ?? demoFrame;
+  const error = external?.error ?? demoError;
+  const loading = external?.loading ?? demoLoading;
+  const sample = external?.sample ?? true;
+  const externalMode = !!external;
+  const setFrame = (next: string) => {
+    if (external) external.onTimeframeChange(next);
+    else { setLoading(true); setError(''); setDemoFrame(next); }
+  };
 
   useEffect(() => {
+    if (externalMode) return;
     let active = true;
     marketData.candles(asset, frame).then(data => {
       if (active) {
@@ -51,7 +71,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
       }
     });
     return () => { active = false; };
-  }, [asset, frame, retry]);
+  }, [asset, frame, retry, externalMode]);
 
   const data = useMemo(() => candles.slice(
     Math.max(0, candles.length - zoom - offset), candles.length - offset,
@@ -81,7 +101,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const inspected = selected || last;
   const lastY = last ? Math.max(plotTop + 12, Math.min(plotBottom - 12, y(last.close))) : 0;
   const maxOffset = Math.max(0, candles.length - zoom);
-  const reload = () => { setLoading(true); setError(''); setRetry(value => value + 1); };
+  const reload = () => { if (external) external.onRetry(); else { setLoading(true); setError(''); setRetry(value => value + 1); } };
   const tools: { label: string; icon: keyof typeof Ionicons.glyphMap; disabled: boolean; onPress: () => void }[] = [
     { label: 'Pan to earlier candles', icon: 'chevron-back', disabled: loading || offset >= maxOffset, onPress: () => { setOffset(Math.min(maxOffset, offset + 8)); setCross(null); } },
     { label: 'Zoom out', icon: 'remove', disabled: loading || zoom >= 100, onPress: () => { setZoom(Math.min(100, zoom + 12)); setOffset(0); setCross(null); } },
@@ -98,23 +118,24 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
         <Pressable accessibilityRole="button" accessibilityLabel="Chart indicators and controls" onPress={() => setControlsOpen(true)} style={({ pressed }) => ({ minHeight: terminal ? 44 : 42, width: 44, borderRadius: 14, borderWidth: terminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="color-wand-outline" size={21} color={average ? terminal ? lineColor : colors.primary : controlColor} /></Pressable>
       </Row>
     </Row>}
-    {!small && !referenceUI && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 4, minHeight: width < 300 ? 36 : 20 }}>
+    {!small && (!referenceUI || external) && <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 4, minHeight: width < 300 ? 36 : 20 }}>
       {(['open', 'high', 'low', 'close'] as const).map((key, index) => <View key={key} style={{ flex: 1, flexBasis: width < 300 ? '44%' : '20%', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
         <Label muted size={9}>{['O', 'H', 'L', 'C'][index]}</Label>
         <Label size={9} color={key === 'close' && inspected ? inspected.close >= inspected.open ? colors.up : colors.down : colors.sub}>{!loading && !error && inspected ? `${key === 'close' ? inspected.close >= inspected.open ? '↗ ' : '↘ ' : ''}${inspected[key].toFixed(asset.precision)}` : '—'}</Label>
       </View>)}
     </View>}
+    {external && inspected && !loading && !error && <Label size={9} color={axisColor}>{selected ? 'Selected bar' : 'Latest bar'} · {frame === '1D' ? `${new Date(inspected.time).toISOString().slice(0, 10)} · UTC date anchor` : `${new Date(inspected.time).toISOString().slice(0, 16).replace('T', ' ')} UTC · open time`}</Label>}
     <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ height: h }}
       onStartShouldSetResponder={() => !loading && !error && !!data.length}
       onMoveShouldSetResponder={() => !loading && !error && !!data.length}
       onResponderGrant={event => setCross(Math.max(0, Math.min(plotW, event.nativeEvent.locationX)))}
       onResponderMove={event => setCross(Math.max(0, Math.min(plotW, event.nativeEvent.locationX)))}
       onResponderTerminationRequest={() => true}
-      accessibilityLabel={`${asset.symbol} simulated ${mode.toLowerCase()} chart. Touch to inspect; use controls below to zoom and pan.`}
+      accessibilityLabel={`${asset.symbol} ${external?.moving ? 'moving simulated' : sample ? 'sample' : 'historical'} ${mode.toLowerCase()} chart. Touch to inspect; use controls below to zoom and pan.`}
     >
       {loading ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="skeleton" tone={tone} title="Loading chart" /></View>
         : error ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="error" tone={tone} title="Chart unavailable" detail={error} onRetry={reload} /></View>
-          : !data.length ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="empty" tone={tone} title="No chart data" detail="There are no simulated candles for this asset and timeframe." /></View>
+          : !data.length ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="empty" tone={tone} title="No chart data" detail={sample ? 'There are no sample candles for this asset and timeframe.' : 'Candles will appear when the market feed is connected.'} /></View>
             : <Svg width="100%" height={h} viewBox={`0 0 ${width} ${h}`}>
               <Defs><LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor={terminal ? lineColor : '#80B8EC'} stopOpacity={terminal ? 0.24 : 0.55} /><Stop offset="1" stopColor={terminal ? lineColor : '#D8EBFA'} stopOpacity={terminal ? 0 : 0.06} /></LinearGradient></Defs>
               {[0, 0.25, 0.5, 0.75, 1].map(fraction => <Line key={fraction} x1={plotW * fraction} x2={plotW * fraction} y1={plotTop} y2={plotBottom} stroke={gridColor} strokeWidth={terminal ? 0.5 : 0.7} />)}
@@ -122,6 +143,10 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
                 const value = low + (high - low) * index / 4;
                 return <React.Fragment key={index}><Line x1={0} x2={plotW} y1={y(value)} y2={y(value)} stroke={gridColor} strokeWidth={terminal ? 0.6 : 1} /><SvgText x={plotW + 8} y={y(value) + 3} fill={axisColor} fontSize={9} fontFamily={fonts.medium}>{value.toFixed(asset.precision)}</SvgText></React.Fragment>;
               })}
+              {offset === 0 && keyLevels.filter(level => level.price >= low && level.price <= high).map(level => <React.Fragment key={level.label}>
+                <Line x1={0} x2={plotW} y1={y(level.price)} y2={y(level.price)} stroke={level.color} strokeOpacity={0.6} strokeDasharray={level.label.startsWith('Prior') ? '2 6' : '6 5'} strokeWidth={0.8} />
+                {!level.label.startsWith('Prior') && <SvgText x={7} y={Math.max(plotTop + 8, y(level.price) - 4)} fill={level.color} fontSize={8} fontFamily={fonts.medium}>{level.label.split(' · ')[0].toUpperCase()}</SvgText>}
+              </React.Fragment>)}
               {(mode === 'Line' || small) && referenceUI && data.length > 0 && <Path d={`${path} L${x(data.length - 1)},${plotBottom} L${x(0)},${plotBottom} Z`} fill={`url(#${gradientId})`} />}
               {terminal && (mode === 'Line' || small) && <Path d={path} stroke={lineColor} strokeOpacity={0.13} strokeWidth={8} fill="none" strokeLinejoin="round" strokeLinecap="round" />}
               {mode === 'Line' || small ? <Path d={path} stroke={lineColor} strokeWidth={terminal ? 2.4 : 1.8} fill="none" strokeLinejoin="round" strokeLinecap="round" /> : data.map((candle, index) => {
@@ -140,7 +165,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
     </View>
     {referenceUI && <>
       <Sheet visible={framesOpen} title="Chart timeframe" onClose={() => setFramesOpen(false)}>{['1m', '5m', '15m', '1h', '4h', '1D'].map(value => <AppButton key={value} label={value} variant={frame === value ? 'primary' : 'secondary'} onPress={() => { if (value !== frame) { setLoading(true); setFrame(value); } setFramesOpen(false); }} />)}</Sheet>
-      <Sheet visible={controlsOpen} title="Chart tools" onClose={() => setControlsOpen(false)}><AppButton label={average ? 'Hide 7-period moving average' : 'Show 7-period moving average'} variant="secondary" onPress={() => setAverage(value => !value)} /><Label muted size={12}>The moving average smooths historical simulated closing prices. It is not a forecast.</Label><ChartTools mode={mode} onModeChange={() => setMode(mode === 'Candles' ? 'Line' : 'Candles')} tools={tools} width={width} /><HistoricalCaption /></Sheet>
+      <Sheet visible={controlsOpen} title="Chart tools" onClose={() => setControlsOpen(false)}><AppButton label={average ? 'Hide 7-period moving average' : 'Show 7-period moving average'} variant="secondary" onPress={() => setAverage(value => !value)} /><Label muted size={12}>The moving average smooths historical {sample ? 'sample ' : ''}closing prices. It is not a forecast.</Label>{keyLevels.length > 0 && <><Label bold>Reference levels · {frame}</Label>{keyLevels.map(level => <Row key={level.label}><Label size={12}>{level.label}</Label><Label bold size={12}>{level.price.toFixed(asset.precision)}</Label></Row>)}<Label muted size={11}>Support and resistance use the previous 20 completed bars. The pivot uses the previous bar. Levels exclude the forming candle and are practice references.</Label></>}<ChartTools mode={mode} onModeChange={() => setMode(mode === 'Candles' ? 'Line' : 'Candles')} tools={tools} width={width} /><HistoricalCaption candles={candles} sample={sample} moving={external?.moving} /></Sheet>
     </>}
     {!small && !referenceUI && <>
       <Row style={{ gap: 8 }}>
@@ -161,6 +186,7 @@ function ChartTools({ mode, onModeChange, tools, width }: { mode: string; onMode
     <Row style={{ gap: 0 }}>{tools.map(tool => <Pressable key={tool.label} accessibilityRole="button" accessibilityLabel={tool.label} accessibilityState={{ disabled: tool.disabled }} disabled={tool.disabled} onPress={tool.onPress} style={({ pressed }) => ({ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', opacity: tool.disabled ? 0.3 : pressed ? 0.6 : 1 })}><Ionicons name={tool.icon} size={17} color={colors.text} /></Pressable>)}</Row>
   </Row>;
 }
-function HistoricalCaption() {
-  return <Row style={{ flexWrap: 'wrap' }}><Label muted size={9}>Candle close · historical simulated series</Label><Label muted size={9}>30 OCT 2026 · UTC</Label></Row>;
+function HistoricalCaption({ candles, sample = true, moving = false }: { candles?: Candle[]; sample?: boolean; moving?: boolean }) {
+  const last = candles?.[candles.length - 1];
+  return <Row style={{ flexWrap: 'wrap' }}><Label muted size={9}>{moving ? 'Simulated history + forming bar · no live feed' : `Candle close · historical ${sample ? 'sample ' : ''}series`}</Label><Label muted size={9}>{last ? new Date(last.time).toISOString().slice(0, 10) : '30 OCT 2026'} · UTC</Label></Row>;
 }

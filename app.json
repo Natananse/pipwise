@@ -19,6 +19,7 @@
       "package": "io.pipwise.app"
     },
     "web": {
+      "output": "server",
       "favicon": "./assets/android-icon-backgrounds.png"
     },
     "plugins": [
@@ -32,8 +33,20 @@
           "imageWidth": 96,
           "resizeMode": "contain"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
-    "scheme": "pipwise"
+    "scheme": "pipwise",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "65b6f1aa-e283-46bd-8c3c-ad8ba7205c4b"
+      }
+    },
+    "owner": "natananse"
   }
 }

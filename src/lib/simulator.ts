@@ -12,6 +12,9 @@ export type Position = {
   takeProfit?: number;
   closed?: string;
   pnl?: number;
+  /** Absent on saved positions from the original fixed-price simulator. */
+  pricingSource?: 'moving-demo-v1';
+  exit?: number;
 };
 export type Wallet = {
   cash: number;
@@ -29,14 +32,15 @@ function collateralUSD(p: Position) {
   return usdNotional({ ...asset, price: p.entry }, p.quantity);
 }
 export function pnl(p: Position, quote?: number) {
-  const mark = quote ?? assets.find((a) => a.symbol === p.symbol)!.price;
+  const mark = quote ?? (p.pricingSource === 'moving-demo-v1' ? p.entry : assets.find((a) => a.symbol === p.symbol)!.price);
+  if (!Number.isFinite(mark) || mark <= 0) throw new Error('A valid simulated quote is required.');
   const quoteProfit = (mark - p.entry) * p.quantity * (p.direction === "buy" ? 1 : -1);
   // For USD/JPY the price movement is in yen. Convert it at the current yen-per-dollar mark.
   return p.symbol.startsWith('USD/') ? quoteProfit / mark : quoteProfit;
 }
-export function summary(w: Wallet) {
+export function summary(w: Wallet, quotes?: Record<string, number>) {
   const reserved = w.positions.reduce((s, p) => s + collateralUSD(p), 0);
-  const unrealized = w.positions.reduce((s, p) => s + pnl(p), 0);
+  const unrealized = w.positions.reduce((s, p) => s + pnl(p, p.pricingSource === 'moving-demo-v1' ? quotes?.[p.symbol] : undefined), 0);
   return {
     reserved,
     unrealized,
@@ -51,7 +55,11 @@ export function openOrder(
   quantity: number,
   stopLoss?: number,
   takeProfit?: number,
+  options?: { pricingSource: 'moving-demo-v1' },
 ): Wallet {
+  if (!Number.isFinite(asset.price) || asset.price <= 0)
+    throw new Error('A valid simulated quote is required.');
+  if (!assets.some(item => item.symbol === asset.symbol)) throw new Error('Unknown practice market.');
   if (!Number.isFinite(quantity) || quantity <= 0)
     throw new Error("Enter a quantity greater than zero.");
   const value = usdNotional(asset, quantity);
@@ -88,19 +96,24 @@ export function openOrder(
     opened: new Date().toISOString(),
     stopLoss,
     takeProfit,
+    ...(options ? { pricingSource: options.pricingSource } : {}),
   };
   return { ...w, cash: w.cash - value - fee, positions: [p, ...w.positions] };
 }
-export function closePosition(w: Wallet, id: string): Wallet {
+export function closePosition(w: Wallet, id: string, quote?: number): Wallet {
   const p = w.positions.find((p) => p.id === id);
   if (!p) throw new Error("Position already closed.");
-  const gain = pnl(p);
-  const exitFee = usdNotional(assets.find((a) => a.symbol === p.symbol)!, p.quantity) * feeRate;
+  if (p.pricingSource === 'moving-demo-v1' && (!Number.isFinite(quote) || quote! <= 0))
+    throw new Error('A current simulated quote is required to close this position.');
+  const asset = assets.find((a) => a.symbol === p.symbol)!;
+  const exit = p.pricingSource === 'moving-demo-v1' ? quote! : asset.price;
+  const gain = pnl(p, exit);
+  const exitFee = usdNotional({ ...asset, price: exit }, p.quantity) * feeRate;
   return {
     cash: w.cash + collateralUSD(p) + gain - exitFee,
     positions: w.positions.filter((p) => p.id !== id),
     history: [
-      { ...p, closed: new Date().toISOString(), pnl: gain - p.fee - exitFee },
+      { ...p, exit, closed: new Date().toISOString(), pnl: gain - p.fee - exitFee },
       ...w.history,
     ],
   };

@@ -6,11 +6,13 @@ export function useReducedMotion() {
   const [reducedMotion, setReducedMotion] = useState<boolean | null>(null);
   useEffect(() => {
     let active = true;
+    // A missing native callback must not hold the launch screen indefinitely.
+    const fallback = setTimeout(() => { if (active) setReducedMotion(true); }, 1000);
     void AccessibilityInfo.isReduceMotionEnabled()
-      .then(value => { if (active) setReducedMotion(value); })
-      .catch(() => { if (active) setReducedMotion(true); });
+      .then(value => { clearTimeout(fallback); if (active) setReducedMotion(value); })
+      .catch(() => { clearTimeout(fallback); if (active) setReducedMotion(true); });
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
-    return () => { active = false; subscription.remove(); };
+    return () => { active = false; clearTimeout(fallback); subscription.remove(); };
   }, []);
   return reducedMotion;
 }

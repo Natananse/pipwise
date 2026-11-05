@@ -8,10 +8,10 @@ import { navigationLayout } from '../../lib/navigation';
 import { ThemeSurface } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
 
-export const unstable_settings = { initialRouteName: 'practice' };
+export const unstable_settings = { anchor: 'practice' };
 export default function TabsLayout() {
   const { t } = useWorkspace(); const wide = useWindowDimensions().width > navigationLayout.wideBreakpoint;
-  return <ThemeSurface tone="light"><Tabs tabBar={props => <FloatingTabBar {...props} />} screenListeners={{ tabPress: () => lightHaptic() }} screenOptions={{ headerShown: false, tabBarPosition: wide ? 'left' : 'bottom', sceneStyle: { backgroundColor: c.bg, marginLeft: wide ? navigationLayout.railWidth : 0 }, tabBarStyle: { width: wide ? navigationLayout.railWidth : undefined } }}>
+  return <ThemeSurface tone="light"><Tabs backBehavior="initialRoute" tabBar={props => <FloatingTabBar {...props} />} screenListeners={{ tabPress: () => lightHaptic() }} screenOptions={{ headerShown: false, tabBarPosition: wide ? 'left' : 'bottom', sceneStyle: { backgroundColor: c.bg, marginLeft: wide ? navigationLayout.railWidth : 0 }, tabBarStyle: { width: wide ? navigationLayout.railWidth : undefined } }}>
     <Tabs.Screen name="practice" options={{ title: t('Trade') }} />
     <Tabs.Screen name="learn" options={{ title: t('Learn') }} />
     <Tabs.Screen name="analyse" options={{ title: t('Analyse') }} />

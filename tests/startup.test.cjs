@@ -3,12 +3,19 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const ts = require('typescript');
 const vm = require('node:vm');
+const path = require('node:path');
 
 function load(file) {
   const moduleOutput = { exports: {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
-  }).outputText, { module: moduleOutput, exports: moduleOutput.exports });
+  }).outputText, {
+    module: moduleOutput, exports: moduleOutput.exports,
+    require: name => {
+      if (name.startsWith('.')) return load(path.resolve(path.dirname(file), `${name}.ts`));
+      throw new Error(`Unexpected import ${name}`);
+    },
+  });
   return moduleOutput.exports;
 }
 const { startupRedirect } = load('src/lib/startup.ts');
@@ -96,8 +103,29 @@ test('returning signed-in or demo users with complete answers go straight to tra
 });
 
 test('the explicit questions entry opens question one without accepting arbitrary step values', () => {
-  assert.equal(onboardingStartStep('questions'), 2);
+  assert.equal(onboardingStartStep('questions'), 1);
   for (const start of [undefined, '', 'welcome', '2', '4', '5', '-1', 'Questions', [], ['questions'], ['questions', '4']]) {
     assert.equal(onboardingStartStep(start), 0);
+  }
+});
+
+test('cold confirmation and recovery links finish before onboarding and authentication redirects', () => {
+  for (const top of ['auth-callback', 'reset-password']) {
+    for (const onboarded of [false, true]) {
+      for (const answersComplete of [false, true]) {
+        for (const authenticated of [false, true]) {
+          assert.equal(startupRedirect({ onboarded, answersComplete, authenticated, top }), null);
+        }
+      }
+    }
+  }
+});
+
+test('recovery sessions reach the password form before ordinary app navigation', () => {
+  for (const top of [undefined, '(tabs)', 'auth', 'onboarding', 'settings']) {
+    for (const onboarded of [false, true]) {
+      assert.equal(startupRedirect({ onboarded, answersComplete: onboarded, authenticated: true, passwordRecovery: true, top }), '/reset-password');
+    }
+    assert.equal(startupRedirect({ onboarded: true, answersComplete: true, authenticated: false, passwordRecovery: true, top }), top === 'auth' ? null : '/auth');
   }
 });

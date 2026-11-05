@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { View } from "react-native";
 import { Asset, money, price, usdNotional } from "../lib/market";
-import { Direction, feeRate } from "../lib/simulator";
+import { Direction, feeRate, Position } from "../lib/simulator";
+import { useDemoMarket } from '../lib/demoMarketProvider';
 import { useWorkspace } from "../lib/workspace";
 import { useTheme } from "../lib/theme";
 import {
@@ -27,12 +28,14 @@ export function OrderBottomSheet({
   embedded?: boolean;
 }) {
   const { wallet, trade } = useWorkspace();
+  const { snapshot, ready } = useDemoMarket();
   const { colors } = useTheme();
   const [quantity, setQuantity] = useState("");
   const [sl, setSl] = useState("");
   const [tp, setTp] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [filled, setFilled] = useState<Position | null>(null);
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const q = Number(quantity);
@@ -41,8 +44,10 @@ export function OrderBottomSheet({
   const fee = value * feeRate;
   const close = () => {
     setSuccess(false);
+    setFilled(null);
     setReview(false);
     setError("");
+    if (!ready) return setError('Loading saved simulated prices. Please wait.');
     setQuantity("");
     setSl("");
     setTp("");
@@ -57,13 +62,14 @@ export function OrderBottomSheet({
     if (!review) return setReview(true);
     setBusy(true);
     try {
-      trade(
+      const position = trade(
         asset,
         direction!,
         q,
         sl ? Number(sl) : undefined,
         tp ? Number(tp) : undefined,
       );
+      setFilled(position);
       setSuccess(true);
     } catch (e) {
       setError((e as Error).message);
@@ -93,17 +99,19 @@ export function OrderBottomSheet({
             {quantity} units of {asset.symbol}. Your simulated position is now
             in your portfolio.
           </Label>
+          {filled && <Label bold>Filled at {filled.entry.toFixed(asset.precision)} {asset.symbol.split('/')[1]} · simulated</Label>}
           <AppButton label="Back to workspace" onPress={close} />
         </>
       ) : (
         <>
           <Badge>VIRTUAL ORDER · NO REAL MONEY</Badge>
           <Row>
-            <Label muted>Simulated entry price</Label>
+            <Label muted>Current simulated price</Label>
             <Label size={24} bold>
               {price(asset)} {asset.symbol.split('/')[1]}
             </Label>
           </Row>
+          <Label muted size={11}>SIMULATED · {new Date(snapshot.asOf).toISOString().slice(11, 19)} UTC</Label>
           {review ? (
             <GlassCard>
               <Label bold>Review your order</Label>
@@ -114,8 +122,9 @@ export function OrderBottomSheet({
                 Stop loss: {sl || "None"} · Take profit: {tp || "None"}
               </Label>
               <Label muted size={12}>
-                Prices are fixed demo quotes. Protective levels are saved as
-                practice targets; automated execution is not connected.
+                The demo price can move during review. Your order fills at the
+                current simulated quote when confirmed. Protective levels are
+                saved as practice targets; automated execution is not connected.
               </Label>
             </GlassCard>
           ) : (
@@ -195,6 +204,7 @@ export function OrderBottomSheet({
             variant={direction === "sell" ? "danger" : "primary"}
             onPress={submit}
             busy={busy}
+            disabled={!ready}
           />
           {review && (
             <AppButton

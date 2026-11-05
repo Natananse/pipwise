@@ -25,7 +25,7 @@ async function storePackages(): Promise<Packages> {
 }
 
 const roadmap = [
-  { title: '50 chart screenshot reviews each month', detail: 'Planned · understand trends and possible scenarios' },
+  { title: 'Free Chart coach studies', detail: 'On-device candle studies and manual ChatGPT prompts' },
   { title: 'Your saved analysis collection', detail: 'Planned · revisit reports and learning notes' },
   { title: 'Deeper performance reviews', detail: 'Planned · reflect on your practice and trading habits' },
 ];
@@ -35,7 +35,7 @@ export default function Paywall() {
 }
 
 function ProScreen() {
-  const { plan, ready, refreshPlan } = useSession();
+  const { plan, ready, session, leaveDemo, refreshPlan, preparePurchases } = useSession();
   const [selected, setSelected] = useState<BillingCycle>('yearly');
   const [packages, setPackages] = useState<Packages>({});
   const [loading, setLoading] = useState(true);
@@ -58,13 +58,22 @@ function ProScreen() {
     return () => { active = false; };
   }, [ready]);
 
+  const openSignIn = async () => {
+    if (busy) return;
+    setBusy(true); setMessage('');
+    try { await leaveDemo(); router.push('/auth'); }
+    catch { setMessage('Sign-in could not be opened. Please try again.'); }
+    finally { setBusy(false); }
+  };
   const purchase = async () => {
     if (busy) return;
     if (plan !== 'free') { router.replace('/practice'); return; }
     if (!currentPackage) { setInfo('preview'); return; }
+    if (!session) { await openSignIn(); return; }
     setBusy(true);
     setMessage('');
     try {
+      await preparePurchases();
       const { customerInfo } = await Purchases.purchasePackage(currentPackage);
       await refreshPlan();
       setMessage(customerInfo.entitlements.active.pro || customerInfo.entitlements.active.elite
@@ -84,6 +93,11 @@ function ProScreen() {
         setMessage('Restore is available in the mobile app when store purchases are connected. Your Free practice account remains available.');
         return;
       }
+      if (!session) {
+        setMessage('Sign in before restoring purchases so your subscription is linked to your PipWise account.');
+        return;
+      }
+      await preparePurchases();
       const customerInfo = await Purchases.restorePurchases();
       await refreshPlan();
       setMessage(customerInfo.entitlements.active.pro || customerInfo.entitlements.active.elite
@@ -112,10 +126,11 @@ function ProScreen() {
         </View>
         <ReferralCard compact />
         <View style={{ gap: 18, paddingHorizontal: 2 }}>
-          <Label bold size={16} color={c.ink}>THE PIPWISE PRO ROADMAP</Label>
+          <Label bold size={16} color={c.ink}>AVAILABLE NOW & PLANNED</Label>
           {roadmap.map(feature => <View key={feature.title} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}><View style={{ backgroundColor: '#E3F7EA', width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }}><Icon name="checkmark" color={c.green} size={19} /></View><View style={{ flex: 1, gap: 3 }}><Label size={14} color={c.ink}>{feature.title}</Label><Label size={10} color={c.muted}>{feature.detail}</Label></View></View>)}
-          <Label size={11} color={c.muted}>These additions are in development. Your current simulator, lesson challenge, portfolio, and practice analytics stay available on Free.</Label>
+          <Label size={11} color={c.muted}>Candle-file studies and the manual ChatGPT workflow are free in PipWise. In-app AI photo reviews are disabled in this beta and are not an active subscription benefit. Your simulator, lessons and practice analytics stay available on Free.</Label>
         </View>
+        <AppButton label="Open free Chart coach" icon="scan-outline" variant="secondary" onPress={() => router.push('/chart-coach')} />
         {loading ? <View style={{ padding: 25, alignItems: 'center', gap: 10 }}><ActivityIndicator color={c.blue} /><Label muted size={12}>Checking available plans…</Label></View> : <View accessibilityRole="radiogroup" style={{ gap: 15 }}>
           {(['yearly', 'monthly'] as const).map(cycle => <Pressable key={cycle} accessibilityRole="radio" accessibilityState={{ checked: selected === cycle, disabled: busy }} disabled={busy} onPress={() => setSelected(cycle)} style={({ pressed }) => ({ minHeight: 105, padding: 18, borderRadius: 25, borderWidth: selected === cycle ? 2 : 1.5, borderColor: selected === cycle ? c.blue : '#E1E6EC', backgroundColor: selected === cycle ? '#ECF3FE' : '#FFFFFF', gap: 5, opacity: pressed ? 0.75 : 1 })}>
             {cycle === 'yearly' && <View style={{ position: 'absolute', right: 18, top: -12, backgroundColor: c.blue, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}><Label bold size={10} color="#FFFFFF">YEARLY PLAN</Label></View>}
@@ -127,17 +142,18 @@ function ProScreen() {
           </Pressable>)}
         </View>}
         {!!message && <View accessibilityRole="alert" style={{ padding: 16, backgroundColor: c.bg, borderRadius: 16 }}><Label size={12} color={c.ink}>{message}</Label></View>}
+        {!session && Platform.OS !== 'web' && <View style={{ gap: 8 }}><Label size={11} color={c.muted}>Sign in before subscribing or restoring purchases. Your membership will be linked to your PipWise account.</Label><AppButton label="Sign in to link purchases" variant="secondary" disabled={busy} onPress={() => { void openSignIn(); }} /></View>}
         <View style={{ gap: 13 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || loading, busy }} disabled={busy || loading} onPress={() => { void purchase(); }} style={({ pressed }) => ({ minHeight: 61, borderRadius: 24, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', opacity: busy || loading ? 0.5 : pressed ? 0.8 : 1, boxShadow: '0px 12px 24px rgba(33,107,235,0.18)' })}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <Label bold size={19} color="#FFFFFF">{plan !== 'free' ? 'Continue practicing' : currentPackage ? 'Start now' : 'Explore Pro preview'}</Label>}</Pressable>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: busy || loading, busy }} disabled={busy || loading} onPress={() => { void purchase(); }} style={({ pressed }) => ({ minHeight: 61, borderRadius: 24, backgroundColor: c.blue, alignItems: 'center', justifyContent: 'center', opacity: busy || loading ? 0.5 : pressed ? 0.8 : 1, boxShadow: '0px 12px 24px rgba(33,107,235,0.18)' })}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <Label bold size={19} color="#FFFFFF">{plan !== 'free' ? 'Continue practicing' : currentPackage ? session ? 'Start now' : 'Sign in to subscribe' : 'Explore Pro preview'}</Label>}</Pressable>
           <Label size={11} color={c.muted} style={{ textAlign: 'center' }}>{currentPackage ? `${selected === 'yearly' ? 'Annual' : 'Monthly'} subscription · ${price(selected)} per ${selected === 'yearly' ? 'year' : 'month'}. Renews automatically until canceled in your store account.` : 'Illustrative USD pricing. No charge or subscription starts from this preview.'}</Label>
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 18 }}>
-          {[{ title: 'Restore', action: () => { void restore(); } }, { title: 'Terms', action: () => setInfo('terms') }, { title: 'Privacy', action: () => setInfo('privacy') }].map(link => <Pressable key={link.title} accessibilityRole="button" disabled={busy} onPress={link.action} style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6, opacity: pressed || busy ? 0.5 : 1 })}><Label size={12} color={c.muted}>{link.title}</Label></Pressable>)}
+          {[{ title: 'Restore', action: () => { void restore(); } }, { title: 'Terms', action: () => setInfo('terms') }, { title: 'Privacy', action: () => setInfo('privacy') }].map(link => <Pressable key={link.title} accessibilityRole="button" accessibilityLabel={link.title === 'Restore' ? 'Restore purchases' : link.title} disabled={busy} onPress={link.action} style={({ pressed }) => ({ minHeight: 44, justifyContent: 'center', paddingHorizontal: 6, opacity: pressed || busy ? 0.5 : 1 })}><Label size={12} color={c.muted}>{link.title}</Label></Pressable>)}
         </View>
       </View>
     </ScrollView>
     <Sheet visible={!!info} onClose={() => setInfo(null)} title={info === 'terms' ? 'Subscription information' : info === 'privacy' ? 'Your practice, your privacy' : 'Pro is taking shape'}>
-      {info === 'preview' ? <><Label bold size={21}>A stronger practice starts free.</Label><Label muted>The Pro features and USD prices shown here are a product preview. A subscription is not available for this selected plan. No payment has been taken.</Label><Label muted>Keep learning, open virtual positions, and review your portfolio while these additions take shape.</Label><AppButton label="Keep practicing for free" onPress={() => { setInfo(null); router.replace('/practice'); }} /></> : info === 'terms' ? <><Label>Pipwise is an educational simulator. It uses virtual funds and sample quotes and does not execute brokerage trades, accept deposits, or guarantee returns.</Label><Label muted>Where a store plan is available, review the exact price, billing period, and renewal information in the Apple or Google confirmation before purchasing. Subscription access is checked through your store receipt and RevenueCat.</Label><Label muted>Preview prices and planned features can change. This summary describes the current product; it is not a complete published Terms of Service agreement.</Label></> : <><Label>Your onboarding preferences, lesson progress, profile, and virtual wallet are saved on this device using local app storage.</Label><Label muted>If you sign in, Supabase manages account authentication. Store purchases are managed by Apple or Google and RevenueCat. This app does not collect payment-card details.</Label><Label muted>Chart screenshot uploads and referral reward tracking are not active in this preview. This summary explains current behavior; a complete privacy policy is needed before a public subscription launch.</Label></>}
+      {info === 'preview' ? <><Label bold size={21}>A stronger practice starts free.</Label><Label muted>The Pro features and USD prices shown here are a product preview. A subscription is not available for this selected plan. No payment has been taken.</Label><Label muted>Keep learning, open virtual positions, and review your portfolio while these additions take shape.</Label><AppButton label="Keep practicing for free" onPress={() => { setInfo(null); router.replace({ pathname: '/(tabs)/practice', params: { mode: 'sample' } }); }} /></> : info === 'terms' ? <><Label>PipWise is an educational app with provider market charts. Its simulator uses virtual funds and moving simulated quotes and does not execute brokerage trades, accept deposits, or guarantee returns.</Label><Label muted>Where a store plan is available, review the exact price, billing period, and renewal information in the Apple or Google confirmation before purchasing. Subscription access is checked through your store receipt and RevenueCat.</Label><Label muted>Preview prices and planned features can change. This summary describes the current product; it is not a complete published Terms of Service agreement.</Label></> : <><Label>Your onboarding preferences, lesson progress, profile, and virtual wallet are saved on this device using local app storage.</Label><Label muted>If you sign in, Neon Auth stores your account name and email and manages authentication. Your selected country and optional contact phone are stored privately with your account; the phone is not SMS-verified. TradingView provides market charts and handles requests made by its chart widgets. Store purchases are managed by Apple or Google and RevenueCat. This app does not collect payment-card details.</Label><Label muted>Candle-file studies run on your device. The manual ChatGPT workflow shares text only when you choose; attach photos yourself in ChatGPT. Opening ChatGPT transfers no prompt or image. If a separately configured photo service is enabled and you consent, the selected image and notes go to the provider named in your consent (OpenAI or Google Gemini); its processing terms apply. Files and reports are not stored by our server; that connected service records a monthly usage count. Referral reward tracking is not active. This summary explains current behavior; a complete privacy policy is needed before a public subscription launch.</Label></>}
     </Sheet>
   </SafeAreaView>;
 }

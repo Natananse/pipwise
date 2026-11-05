@@ -1,4 +1,5 @@
-import type { Language, Preferences } from './workspace';
+import type { Preferences } from './workspace';
+import { translate } from './translations';
 
 export const onboardingQuestions = [
   {
@@ -42,47 +43,8 @@ export function hasCompleteOnboardingAnswers(preferences: Preferences) {
     && onboardingQuestions[2].options.some(option => option.value === preferences.goal);
 }
 
-export function onboardingStartStep(start: string | string[] | undefined): 0 | 2 {
-  return start === 'questions' ? 2 : 0;
+export function onboardingStartStep(start: string | string[] | undefined): 0 | 1 {
+  return start === 'questions' ? 1 : 0;
 }
 
-const am: Record<string, string> = {
-  'Trade smarter.': 'በብልሃት ይገበያዩ።',
-  'Practice wiser.': 'በጥበብ ይለማመዱ።',
-  'Build confidence, one practice trade at a time.': 'በእያንዳንዱ የልምምድ ግብይት እምነትዎን ያሳድጉ።',
-  'YOUR NEXT CHAPTER STARTS HERE': 'አዲሱ ጉዞዎ እዚህ ይጀምራል',
-  'Explore markets. Build confidence. Find your rhythm with $10,000 in virtual funds.': 'ገበያዎችን ያስሱ። በራስዎ ይተማመኑ። በ10,000 ዶላር ምናባዊ ገንዘብ ይለማመዱ።',
-  'Virtual money': 'ምናባዊ ገንዘብ',
-  'Your pace': 'በእርስዎ ፍጥነት',
-  'Get started': 'ይጀምሩ',
-  'Language + 3 quick questions': 'ቋንቋ እና 3 አጭር ጥያቄዎች',
-  'Continue to questions': 'ወደ ጥያቄዎች ቀጥል',
-  'Onboarding questions': 'የመነሻ ጥያቄዎች',
-  Continue: 'ቀጥል', Back: 'ተመለስ',
-  'Let’s make it yours.': 'ለእርስዎ እናብጅ።',
-  'Choose your language': 'ቋንቋዎን ይምረጡ',
-  'A familiar language. A clearer start. You can change this in your profile.': 'በሚያውቁት ቋንቋ ይጀምሩ። በኋላ በመገለጫዎ ውስጥ መቀየር ይችላሉ።',
-  'A LITTLE ABOUT YOU': 'ስለ እርስዎ ጥቂት ነገር',
-  'Question': 'ጥያቄ', 'of': 'ከ', 'Select all that apply': 'የሚመለከቱዎትን ሁሉ ይምረጡ',
-  'How experienced are you with trading?': 'በግብይት ምን ያህል ልምድ አለዎት?',
-  'We’ll meet you where you are. Everyone starts somewhere.': 'ካሉበት ደረጃ እንጀምራለን። ሁሉም ሰው የሚጀምርበት ቦታ አለው።',
-  'Complete beginner': 'ሙሉ በሙሉ ጀማሪ', 'Know the basics': 'መሠረታዊ እውቀት አለኝ', Intermediate: 'መካከለኛ', Experienced: 'ልምድ ያለኝ',
-  'I’m ready to learn from the beginning.': 'ከመጀመሪያው ለመማር ዝግጁ ነኝ።',
-  'I know a little and want to practice.': 'ጥቂት አውቃለሁ፤ መለማመድ እፈልጋለሁ።',
-  'I’ve traded before and want to improve.': 'ከዚህ በፊት ተገበያይቻለሁ፤ መሻሻል እፈልጋለሁ።',
-  'I’m here to refine my approach.': 'የግብይት ዘዴዬን ለማሻሻል መጥቻለሁ።',
-  'Which markets interest you?': 'የትኞቹ ገበያዎች ያስደስቱዎታል?',
-  'Choose one or more. You can explore every market later.': 'አንድ ወይም ከዚያ በላይ ይምረጡ። በኋላ ሁሉንም ገበያዎች ማሰስ ይችላሉ።',
-  Forex: 'የውጭ ምንዛሬ', Cryptocurrency: 'ክሪፕቶ ምንዛሬ', 'Gold and Silver': 'ወርቅ እና ብር', 'Oil and Commodities': 'ነዳጅ እና ሸቀጦች', 'Stocks and Indices': 'አክሲዮኖች እና ኢንዴክሶች',
-  'Global currencies': 'ዓለም አቀፍ ምንዛሬዎች', 'Bitcoin and digital assets': 'ቢትኮይን እና ዲጂታል ንብረቶች', 'Precious metals': 'ውድ ማዕድናት', 'Energy and raw materials': 'ኃይል እና ጥሬ ዕቃዎች', 'Companies and global indices': 'ኩባንያዎች እና ዓለም አቀፍ ኢንዴክሶች',
-  'What is your main goal?': 'ዋና ዓላማዎ ምንድን ነው?',
-  'Choose the focus that matters most to you right now.': 'አሁን ለእርስዎ በጣም አስፈላጊውን ዓላማ ይምረጡ።',
-  'Learn financial markets': 'የፋይናንስ ገበያዎችን መማር', 'Practice trading': 'ግብይትን መለማመድ', 'Improve strategies': 'ስልቶችን ማሻሻል', 'Understand market analysis': 'የገበያ ትንታኔን መረዳት',
-  'Build a strong foundation.': 'ጠንካራ መሠረት ይገንቡ።', 'Try ideas with virtual money.': 'ሃሳቦችዎን በምናባዊ ገንዘብ ይሞክሩ።', 'Review results and refine my process.': 'ውጤቶችን በመገምገም ዘዴዬን ማሻሻል።', 'Get comfortable reading charts.': 'ገበታዎችን በማንበብ ልምድ ማግኘት።',
-  'Save & continue': 'አስቀምጥና ቀጥል',
-  'Preferences stay on this device. Change them anytime in your profile.': 'ምርጫዎችዎ በዚህ መሣሪያ ይቀመጣሉ። በመገለጫዎ ውስጥ እንደገና ማዘጋጀት ይችላሉ።',
-  'Educational simulator · No real money or live quotes.': 'የትምህርት ማስመሰያ · እውነተኛ ገንዘብ ወይም ቀጥታ ዋጋዎች የሉም።',
-  'Could not save your setup. Please try again.': 'ምርጫዎችዎን ማስቀመጥ አልተቻለም። እንደገና ይሞክሩ።',
-};
-
-export const onboardingText = (language: Language, text: string) => language === 'am' ? am[text] || text : text;
+export const onboardingText = translate;
