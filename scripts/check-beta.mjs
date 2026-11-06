@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isIP } from 'node:net';
 
 const profiles = {
   preview: { distribution: 'internal', environment: 'preview' },
@@ -14,7 +15,10 @@ function publicServiceUrl(value) {
   if (!nonempty(value)) return false;
   try {
     const url = new URL(value.trim());
-    const local = /^(localhost|127\.|0\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\])/i.test(url.hostname);
+    const hostname = url.hostname.replace(/^\[|\]$/g, '');
+    // Release services use public DNS names, never a device/LAN address or IP literal.
+    const local = isIP(hostname) !== 0 || !hostname.includes('.')
+      || hostname === 'localhost' || hostname.endsWith('.localhost');
     const placeholder = /example\.(com|org|net)$|your[-_]?(project|neon)|<|>/i.test(url.hostname);
     return url.protocol === 'https:' && !local && !placeholder && !url.username && !url.password
       && !url.search && !url.hash;
@@ -61,16 +65,20 @@ export function checkBetaConfig({ appConfig, easConfig, env = {}, profile = 'pre
     if (profile !== 'preview' && build.ios?.simulator === true) errors.push(`Disable build.${profile}.ios.simulator to distribute to physical iPhones.`);
   }
   const effective = { ...env, ...(isRecord(build.env) ? build.env : {}) };
+  for (const [name, value] of Object.entries(effective)) {
+    if (name.startsWith('EXPO_PUBLIC_') && nonempty(value)
+      && /(?:DATABASE|SECRET|PASSWORD|PRIVATE_KEY|SERVICE_ROLE|SERVICE_ACCOUNT|(?:OPENAI|GEMINI|TWELVE_DATA|MARKETAUX)_API_KEY)/i.test(name)) {
+      errors.push(`Remove ${name} from client build variables. Privileged credentials belong only in the server environment.`);
+    }
+  }
   if (!publicServiceUrl(effective.EXPO_PUBLIC_NEON_AUTH_URL)
     || !new URL(effective.EXPO_PUBLIC_NEON_AUTH_URL.trim()).pathname.replace(/\/+$/, '').endsWith('/auth')) {
     errors.push('Set EXPO_PUBLIC_NEON_AUTH_URL to the public HTTPS Neon Auth URL, including its /auth service path, in the selected EAS environment and your local .env. Do not include credentials, query parameters, or fragments.');
   }
-  const backend = effective.EXPO_PUBLIC_APP_API_URL || effective.EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL;
-  const backendValid = publicServiceUrl(backend) && (effective.EXPO_PUBLIC_APP_API_URL
-    ? new URL(backend.trim()).pathname === '/'
-    : new URL(backend.trim()).pathname === '/native-auth.html');
+  const backend = effective.EXPO_PUBLIC_APP_API_URL;
+  const backendValid = publicServiceUrl(backend) && new URL(backend.trim()).pathname === '/';
   if (!backendValid) {
-    errors.push('Set EXPO_PUBLIC_APP_API_URL to your public HTTPS application backend origin, or configure EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL with its deployed /native-auth.html path. Do not include credentials, query parameters, or fragments.');
+    errors.push('Set EXPO_PUBLIC_APP_API_URL explicitly to your public HTTPS application backend origin in the selected EAS environment. Do not rely on the social return URL or include credentials, query parameters, or fragments.');
   }
   const enabledProviders = {};
   for (const name of ['EXPO_PUBLIC_GOOGLE_AUTH_ENABLED', 'EXPO_PUBLIC_APPLE_AUTH_ENABLED']) {

@@ -15,7 +15,7 @@ export default function TabsLayout() {
     <Tabs.Screen name="practice" options={{ title: t('Trade') }} />
     <Tabs.Screen name="learn" options={{ title: t('Learn') }} />
     <Tabs.Screen name="analyse" options={{ title: t('Analyse') }} />
-    <Tabs.Screen name="top" options={{ title: t('Top') }} />
+    <Tabs.Screen name="top" options={{ title: t('Progress') }} />
     <Tabs.Screen name="profile" options={{ title: t('Profile') }} />
     <Tabs.Screen name="news" options={{ href: null }} />
   </Tabs></ThemeSurface>;

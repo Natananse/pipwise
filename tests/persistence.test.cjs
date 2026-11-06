@@ -29,3 +29,21 @@ test('failed storage rejects the caller and still permits a successful retry', a
   await assert.rejects(enqueue(async () => { throw new Error('disk unavailable'); }), /disk unavailable/);
   assert.equal(await enqueue(async () => 'retry saved'), 'retry saved');
 });
+
+test('deletion waits for an active save and suppresses queued old writes before storage is erased', async () => {
+  const enqueue = createPersistenceQueue();
+  const events = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const first = enqueue(async () => { events.push('started'); await gate; events.push('saved'); });
+  await Promise.resolve();
+  const obsolete = enqueue(async () => { events.push('obsolete'); });
+  const drain = moduleExports.exports.pausePersistenceForAccountDeletion().then(() => events.push('drained'));
+  release();
+  await Promise.all([first, obsolete, drain]);
+  assert.deepEqual(events, ['started', 'saved', 'drained']);
+  await enqueue(async () => { events.push('blocked'); });
+  moduleExports.exports.resumePersistenceAfterAccountDeletion();
+  await enqueue(async () => { events.push('new account'); });
+  assert.deepEqual(events, ['started', 'saved', 'drained', 'new account']);
+});

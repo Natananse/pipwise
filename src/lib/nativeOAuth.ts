@@ -9,7 +9,8 @@ const lifetime = 10 * 60 * 1000;
 const callback = 'pipwise://auth-callback';
 const statePattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const expiredMessage = 'This sign-in attempt has expired. Start sign-in again.';
-type Pending = { authUrl: string; state: string; createdAt: number; challenge: NeonSessionCookie | null };
+type NativeAuthReturnPath = '/delete-account';
+type Pending = { authUrl: string; state: string; createdAt: number; challenge: NeonSessionCookie | null; returnPath?: NativeAuthReturnPath };
 type Exchange = (verifier: string) => Promise<AuthSession>;
 
 function returnURL() {
@@ -33,13 +34,14 @@ export function createNativeOAuthController(authUrl: string) {
   let requests = 0;
   let retryState: string | null = null;
   let completing: { key: string; promise: Promise<AuthSession> } | null = null;
-  let completed: { key: string; session: AuthSession; at: number } | null = null;
+  let completed: { key: string; session: AuthSession; at: number; returnPath?: NativeAuthReturnPath } | null = null;
   const forgetCompletion = (completionKey: string) => {
     if (completing?.key === completionKey) completing = null;
   };
 
   const valid = (value: Pending | null, now = Date.now()) => !!value && value.authUrl === authUrl
-    && statePattern.test(value.state) && Number.isFinite(value.createdAt) && value.createdAt <= now && now - value.createdAt < lifetime;
+    && statePattern.test(value.state) && Number.isFinite(value.createdAt) && value.createdAt <= now && now - value.createdAt < lifetime
+    && (value.returnPath === undefined || value.returnPath === '/delete-account');
   const persist = () => {
     const value = pending ? JSON.stringify(pending) : null;
     const write = writes.then(async () => {
@@ -80,6 +82,9 @@ export function createNativeOAuthController(authUrl: string) {
   }
 
   const attemptId = () => valid(pending) ? pending!.state : null;
+  // Never use a callback query as a navigation target. The app-selected path
+  // travels only in the encrypted, challenge-bound attempt and completion cache.
+  const returnPath = () => completed && Date.now() - completed.at < 30000 ? completed.returnPath : undefined;
   const challengeHeader = () => valid(pending) ? neonChallengeCookieHeader(pending!.challenge, Date.now()) : '';
   async function captureCookies(headers: string[]) {
     if (!valid(pending)) return;
@@ -120,6 +125,7 @@ export function createNativeOAuthController(authUrl: string) {
       if (!challengeHeader()) throw new Error('The sign-in challenge is missing or expired. Start sign-in again.');
       if (completing) throw new Error('Another sign-in callback is being completed.');
       const attemptGeneration = generation;
+      const destination = pending.returnPath;
       requests++;
       // Keep the physical request deduplicated even if the bounded UI wait
       // expires. A late success can then be reused by a callback retry.
@@ -127,7 +133,7 @@ export function createNativeOAuthController(authUrl: string) {
         if (generation !== attemptGeneration || !valid(pending) || pending?.state !== state) throw new Error(expiredMessage);
         await clearAttempt(state);
         if (generation !== attemptGeneration) throw new Error(expiredMessage);
-        completed = { key: completionKey, session, at: Date.now() };
+        completed = { key: completionKey, session, at: Date.now(), returnPath: destination };
         retryState = null;
         return session;
       });
@@ -141,7 +147,8 @@ export function createNativeOAuthController(authUrl: string) {
     })();
   }
 
-  async function start(provider: 'google' | 'apple', startRequest: (callbackURL: string) => Promise<string>, exchange: Exchange): Promise<AuthSession | null> {
+  async function start(provider: 'google' | 'apple', startRequest: (callbackURL: string) => Promise<string>, exchange: Exchange, destination?: NativeAuthReturnPath): Promise<AuthSession | null> {
+    if (destination !== undefined && destination !== '/delete-account') throw new Error('This sign-in return path is unavailable.');
     await restore();
     const relay = returnURL();
     if (provider !== 'google' && provider !== 'apple') throw new Error('This sign-in provider is unavailable.');
@@ -151,7 +158,7 @@ export function createNativeOAuthController(authUrl: string) {
     activeStart = state;
     completed = null;
     retryState = null;
-    pending = { authUrl, state, createdAt: Date.now(), challenge: null };
+    pending = { authUrl, state, createdAt: Date.now(), challenge: null, returnPath: destination };
     relay.searchParams.set('state', state);
     try {
       await persist();
@@ -178,5 +185,5 @@ export function createNativeOAuthController(authUrl: string) {
     }
   }
 
-  return { restore, attemptId, challengeHeader, captureCookies, clear, start, complete };
+  return { restore, attemptId, returnPath, challengeHeader, captureCookies, clear, start, complete };
 }

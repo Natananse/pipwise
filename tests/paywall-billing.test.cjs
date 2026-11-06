@@ -123,11 +123,13 @@ test('a billing identity failure prevents both store operations', async () => {
   assert.match(h.text(), /could not be restored/);
 });
 
-test('unconfigured purchases remain an honest preview without forcing account access', async () => {
+test('unconfigured purchases offer free practice without fake plans or forcing account access', async () => {
   const h = screen({ signedIn: false, connected: false });
   await h.flush();
-  await h.press('Explore Pro preview');
+  assert.match(h.text(), /Subscriptions are currently unavailable/);
+  assert.doesNotMatch(h.text(), /\$59\.99|\$7\.99|\$5\.00|USD preview|Planned/);
+  await h.press('Continue free practice');
   await h.press('Restore purchases');
-  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.calls, ['replace:/practice']);
   assert.match(h.text(), /Restore is available in the mobile app when store purchases are connected/);
 });

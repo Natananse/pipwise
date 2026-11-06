@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { Buffer } = require('node:buffer');
 const fs = require('node:fs');
 const ts = require('typescript');
 const vm = require('node:vm');
@@ -153,6 +154,9 @@ test('the production reservation locks account and shared UTC-month counters bef
   } });
   assert.equal((await h.call(body({ userId: 'not-this-user' }))).result.status, 200);
   assert.match(queries[0].sql, /INSERT INTO public\.chart_review_usage/);
+  assert.match(queries[0].sql, /WITH owner AS MATERIALIZED/);
+  assert.match(queries[0].sql, /FROM neon_auth\."user" WHERE id = \?::uuid FOR KEY SHARE/);
+  assert.match(queries[0].sql, /FROM owner\s+UNION ALL SELECT owner\.id::text/);
   assert.match(queries[0].sql, /date_trunc\('month', now\(\) AT TIME ZONE 'UTC'\)/);
   assert.match(queries[0].sql, /ON CONFLICT \(user_id, month_start\) DO NOTHING/);
   assert.match(queries[1].sql, /WITH locked AS MATERIALIZED/);

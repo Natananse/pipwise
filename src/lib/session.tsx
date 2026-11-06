@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import Purchases from 'react-native-purchases';
-import { authConfigured, getAuthSession, signOut as accountSignOut, subscribeAuth, type AuthSession } from './neonAuth';
+import { authConfigured, getAuthSession, publishAccountDeletion, signOut as accountSignOut, subscribeAuth, type AuthSession } from './neonAuth';
 import { StartupTimeoutError, withStartupTimeout } from './startupTasks';
 import { SecureStorageUnavailableError } from './secureStorage';
 import { syncPendingRegistrationDetails } from './accountDetails';
@@ -17,12 +17,14 @@ type Ctx = {
   acceptDisclaimer: () => Promise<void>; finishOnboarding: () => Promise<void>; refreshPlan: () => Promise<void>; preparePurchases: () => Promise<void>;
   passwordRecovery: boolean; beginPasswordRecovery: () => void; clearPasswordRecovery: () => void;
   accountDetailsError: string; retryAccountDetails: () => Promise<void>;
+  finishAccountDeletion: (expectedAccountId?: string) => Promise<void>; accountDataVersion: number;
 };
 const SessionCtx = createContext<Ctx>(null as unknown as Ctx);
 export const useSession = () => useContext(SessionCtx);
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [demo, setDemo] = useState(false);
+  const [accountDataVersion, setAccountDataVersion] = useState(0);
   const [ready, setReady] = useState(false);
   const [initializationError, setInitializationError] = useState('');
   const [initializationAttempt, setInitializationAttempt] = useState(0);
@@ -40,6 +42,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const billingAccount = useRef<string | undefined>(undefined);
   const [accountDetailsError, setAccountDetailsError] = useState('');
   const currentAccount = useRef<string | undefined>(undefined);
+  const deletionCleanup = useRef<{ accountId?: string; promise: Promise<void>; pending: boolean } | null>(null);
   const retryAccountDetails = useCallback(async () => {
     if (!session) return;
     const accountId = session.user.id;
@@ -212,6 +215,36 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setDemo(false);
     setPasswordRecovery(false);
   };
+  const finishAccountDeletion = async (expectedAccountId?: string) => {
+    const accountId = expectedAccountId ?? currentAccount.current;
+    const previous = deletionCleanup.current;
+    const changed = () => Object.assign(new Error('Your previous account was deleted. Your current account and local data have been preserved.'), { code: 'DELETED_ACCOUNT_CHANGED', deletedAccountId: accountId });
+    if (accountId && currentAccount.current && currentAccount.current !== accountId) throw changed();
+    if (previous && previous.accountId !== accountId && previous.pending) throw changed();
+    let operation = previous && previous.accountId === accountId ? previous.promise : undefined;
+    if (!operation) {
+      const promise = (async () => {
+        const { clearDeletedAccountLocalData } = await import('./accountDeletion');
+        if (accountId && currentAccount.current && currentAccount.current !== accountId) throw changed();
+        await clearDeletedAccountLocalData(accountId);
+        currentAccount.current = undefined;
+        billingAccount.current = undefined;
+        sessionRevision.current++;
+        setSession(null);
+        setAccountPlan({ plan: 'free' });
+        setDemo(false); setD(false); setO(false); setPasswordRecovery(false);
+        setOnboardingPreviewActive(false);
+        setAccountDetailsError('');
+        setAccountDataVersion(value => value + 1);
+        publishAccountDeletion();
+      })();
+      const current: { accountId?: string; promise: Promise<void>; pending: boolean } = { accountId, promise, pending: true };
+      deletionCleanup.current = current;
+      void promise.then(() => { current.pending = false; }, () => { if (deletionCleanup.current === current) deletionCleanup.current = null; });
+      operation = promise;
+    }
+    await withStartupTimeout(operation, 'Your account was deleted, but clearing this device took too long. Please retry.');
+  };
   const resetOnboarding = async () => { await withStartupTimeout(AsyncStorage.removeItem('onboarded'), 'Saving took too long. Please try again.'); setO(false); };
   const acceptDisclaimer = async () => { await withStartupTimeout(AsyncStorage.setItem('disclaimer', '1'), 'Saving took too long. Please try again.'); setD(true); };
   const finishOnboarding = async () => {
@@ -222,5 +255,5 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setOnboardingPreviewActive(false);
   };
 
-  return <SessionCtx.Provider value={{ demo, startDemo, leaveDemo, signOut, resetOnboarding, ready, initializationError, retryInitialization, session, plan, authConfigured, onboardingPreviewActive, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan, preparePurchases, passwordRecovery, beginPasswordRecovery, clearPasswordRecovery, accountDetailsError, retryAccountDetails }}>{children}</SessionCtx.Provider>;
+  return <SessionCtx.Provider value={{ demo, startDemo, leaveDemo, signOut, resetOnboarding, ready, initializationError, retryInitialization, session, plan, authConfigured, onboardingPreviewActive, disclaimerAccepted, onboarded, acceptDisclaimer, finishOnboarding, refreshPlan, preparePurchases, passwordRecovery, beginPasswordRecovery, clearPasswordRecovery, accountDetailsError, retryAccountDetails, finishAccountDeletion, accountDataVersion }}>{children}</SessionCtx.Provider>;
 }

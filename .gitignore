@@ -13,6 +13,7 @@ expo-env.d.ts
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
@@ -33,7 +34,14 @@ yarn-error.*
 
 # local env files
 .env
-.env*.local
+.env.*
+!.env.example
+
+# Local signing / Play service-account credentials
+/credentials.json
+*service-account*.json
+*service_account*.json
+*android-publisher*.json
 
 # typescript
 *.tsbuildinfo

@@ -16,11 +16,13 @@ function load(file, imports = {}, env = {}) {
 }
 
 const feedback = load('src/lib/feedback.ts');
+const retention = load('src/server/feedbackRetention.ts');
 class HttpError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
 const authentication = { HttpError, authenticate: async () => { throw new HttpError(401, 'UNAUTHORIZED', 'Sign in.'); } };
 const imports = {
   '@neondatabase/serverless': { neon: () => { throw new Error('Unexpected external database access'); } },
   '../lib/feedback': feedback, './authenticate': authentication,
+  './feedbackRetention': retention,
 };
 const { feedbackApi } = load('src/server/feedbackApi.ts', imports);
 const owner = '12345678-1234-1234-1234-123456789012';
@@ -154,17 +156,23 @@ test('default storage uses parameterized explicit columns and requests no review
   const { feedbackApi: api } = load('src/server/feedbackApi.ts', {
     ...imports, '@neondatabase/serverless': { neon: url => {
       assert.equal(url, 'postgres://private-test-connection');
-      return async (strings, ...values) => { queries.push({ sql: strings.join('?'), values }); return []; };
+      return async (strings, ...values) => {
+        const query = strings.join('?');
+        queries.push({ sql: query, values });
+        return /WITH expired AS/.test(query) ? [{ removed: 0 }] : [];
+      };
     } },
   }, { DATABASE_URL: 'postgres://private-test-connection' });
   const message = "User text '); delete from public.beta_feedback; --";
   const response = await api(post({ ...payload, message }), authorized);
   assert.equal(response.status, 200);
-  assert.equal(queries.length, 1);
-  assert.match(queries[0].sql, /insert into public\.beta_feedback/i);
-  assert.doesNotMatch(queries[0].sql, /returning|select \*/i);
-  assert.ok(!queries[0].sql.includes(message));
-  assert.deepEqual(Array.from(queries[0].values), [owner, payload.client_report_id, 4, 'bug', message, '1.0.0', 'android', 'am']);
+  assert.equal(queries.length, 2);
+  assert.match(queries[0].sql, /DELETE FROM public\.beta_feedback/);
+  assert.match(queries[0].sql, /created_at <= now\(\) - interval '12 months'/);
+  assert.match(queries[1].sql, /insert into public\.beta_feedback/i);
+  assert.doesNotMatch(queries[1].sql, /returning|select \*/i);
+  assert.ok(!queries[1].sql.includes(message));
+  assert.deepEqual(Array.from(queries[1].values), [owner, payload.client_report_id, 4, 'bug', message, '1.0.0', 'android', 'am']);
 });
 
 test('Expo feedback route delegates the POST request without importing client configuration', async () => {

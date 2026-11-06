@@ -120,3 +120,19 @@ test('raw linking URL remains a fallback, while web uses the browser callback UR
   assert.deepEqual(web.calls, [browserUrl]);
   web.unmount();
 });
+
+test('successful native deletion reauthentication returns to the allowlisted deletion page', async () => {
+  const fixture = screen({ params: { state: 'current-state', neon_auth_session_verifier: 'current-verifier' }, validate: async () => ({ recovery: false, destination: '/delete-account' }) });
+  await fixture.flush();
+  assert.deepEqual(fixture.navigations, ['/delete-account']);
+  fixture.unmount();
+});
+
+test('other destination strings cannot redirect the callback screen', async () => {
+  for (const destination of ['https://untrusted.example.test', '//untrusted.example.test', '/settings', '/delete-account?next=external']) {
+    const fixture = screen({ params: { state: 'current-state', neon_auth_session_verifier: 'current-verifier' }, validate: async () => ({ recovery: false, destination }) });
+    await fixture.flush();
+    assert.deepEqual(fixture.navigations, ['/auth']);
+    fixture.unmount();
+  }
+});

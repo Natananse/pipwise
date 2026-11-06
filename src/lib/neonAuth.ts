@@ -21,6 +21,9 @@ export const authConfigured = authUrl !== null;
 export const googleAuthEnabled = authConfigured && process.env.EXPO_PUBLIC_GOOGLE_AUTH_ENABLED === '1';
 export const appleAuthEnabled = authConfigured && process.env.EXPO_PUBLIC_APPLE_AUTH_ENABLED === '1';
 let clientPromise: Promise<VanillaBetterAuthClient> | null = null;
+let clientGeneration = 0;
+let accountDeletionCleanup = false;
+let currentAuthAccountId: string | undefined;
 let cookie: NeonSessionCookie | null = null;
 let cookieWrites = Promise.resolve();
 let nativeOAuth: ReturnType<typeof import('./nativeOAuth').createNativeOAuthController> | null = null;
@@ -43,6 +46,8 @@ async function discardCancelledOAuthCookie() {
 }
 
 function notify(session: AuthSession | null) {
+  if (accountDeletionCleanup) return;
+  currentAuthAccountId = session?.user.id;
   listeners.forEach(listener => listener(session));
 }
 export function subscribeAuth(listener: Listener) {
@@ -58,6 +63,21 @@ export class AccountAccessError extends Error {
     this.name = 'AccountAccessError';
     this.code = error.code;
   }
+}
+
+function assertAuthGeneration(generation: number) {
+  if (generation !== clientGeneration || accountDeletionCleanup)
+    throw new AccountAccessError({ code: 'AUTH_SESSION_CHANGED', message: 'Your account changed. Please try again.' });
+}
+
+/** Keep new sign-ins and obsolete Auth responses outside physical local erasure. */
+export function lockAuthForAccountDeletion(expectedAccountId?: string): () => void {
+  if (expectedAccountId && currentAuthAccountId && currentAuthAccountId !== expectedAccountId)
+    throw new AccountAccessError({ code: 'DELETED_ACCOUNT_CHANGED', message: 'Your previous account was deleted. Your current account and local data have been preserved.' });
+  if (accountDeletionCleanup) throw new AccountAccessError({ code: 'ACCOUNT_DELETION_IN_PROGRESS', message: 'Account cleanup is still in progress. Please wait and retry.' });
+  accountDeletionCleanup = true;
+  clientGeneration++;
+  return () => { accountDeletionCleanup = false; };
 }
 
 /** Account creation succeeded; retry delivery rather than creating another account. */
@@ -86,8 +106,10 @@ async function persistCookie(next: NeonSessionCookie | null) {
 }
 
 async function getClient(): Promise<VanillaBetterAuthClient> {
+  if (accountDeletionCleanup) throw new AccountAccessError({ code: 'ACCOUNT_DELETION_IN_PROGRESS', message: 'Account cleanup is still in progress. Please wait and retry.' });
   if (!authUrl) throw new Error('Account access is currently unavailable. You can still explore in demo mode.');
   if (!clientPromise) {
+    const generation = clientGeneration;
     clientPromise = (async () => {
       if (Platform.OS !== 'web') {
         const secureStore = await loadSecureStore();
@@ -97,13 +119,16 @@ async function getClient(): Promise<VanillaBetterAuthClient> {
         if (!globalThis.crypto) Object.defineProperty(globalThis, 'crypto', { value: {}, configurable: true });
         if (!globalThis.crypto.randomUUID) Object.defineProperty(globalThis.crypto, 'randomUUID', { value: crypto.randomUUID, configurable: true });
         if (!globalThis.crypto.getRandomValues) Object.defineProperty(globalThis.crypto, 'getRandomValues', { value: crypto.getRandomValues, configurable: true });
-        cookie = restoreNeonSessionCookie(await secureStore.getItemAsync(neonCookieStorageKey(authUrl)), authUrl);
+        const savedCookie = await secureStore.getItemAsync(neonCookieStorageKey(authUrl));
+        assertAuthGeneration(generation);
+        cookie = restoreNeonSessionCookie(savedCookie, authUrl);
         nativeOAuth ??= (await import('./nativeOAuth')).createNativeOAuthController(authUrl);
         await nativeOAuth.restore();
       }
       const [{ createAuthClient }, { BetterAuthVanillaAdapter }] = await Promise.all([
         import('@neon/auth'), import('@neon/auth/vanilla/adapters'),
       ]);
+      assertAuthGeneration(generation);
       return createAuthClient(authUrl, {
         adapter: BetterAuthVanillaAdapter(Platform.OS === 'web' ? undefined : {
           fetchOptions: {
@@ -122,12 +147,14 @@ async function getClient(): Promise<VanillaBetterAuthClient> {
               else context.headers.delete('Cookie');
             },
             async onSuccess(context) {
+              if (generation !== clientGeneration) return;
               const responseURL = context.request?.url.toString();
               const verifier = responseURL ? new URL(responseURL).searchParams.get('neon_auth_session_verifier') : null;
               const attempt = verifier ? verifierAttempts.get(verifier) : null;
               const headers = context.response.headers;
               const setCookies = typeof headers.getSetCookie === 'function' ? headers.getSetCookie() : [headers.get('set-cookie') || ''];
               await queueCookieWrite(async () => {
+                if (generation !== clientGeneration) return;
                 // Check inside the queue: cancellation may happen while an
                 // earlier secure-storage operation is still running.
                 if (verifier && (!attempt || nativeOAuth?.attemptId() !== attempt)) return;
@@ -146,51 +173,103 @@ async function getClient(): Promise<VanillaBetterAuthClient> {
       });
     })();
     // Failed secure storage/module reads remain retryable from the startup UI.
-    void clientPromise.catch(() => { clientPromise = null; });
+    const initializing = clientPromise;
+    void initializing.catch(() => { if (clientPromise === initializing) clientPromise = null; });
   }
   return clientPromise;
 }
 
 export async function getAuthSession(options?: { timeout?: number }): Promise<AuthSession | null> {
   if (!authConfigured) return null;
+  const generation = clientGeneration;
   const client = await getClient();
   const requestedCookie = cookie;
   const result = await client.getSession({ fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, ...(options?.timeout ? { timeout: options.timeout } : {}) } });
+  assertAuthGeneration(generation);
   check(result.error);
   const session = result.data?.user && result.data.user.emailVerified !== false
     ? { user: { id: result.data.user.id, email: result.data.user.email, name: result.data.user.name } } : null;
   if (!session && Platform.OS !== 'web') await queueCookieWrite(async () => {
+    assertAuthGeneration(generation);
     if (cookie && cookie === requestedCookie) await persistCookie(null);
   });
+  assertAuthGeneration(generation);
+  currentAuthAccountId = session?.user.id;
   return session;
 }
 
 /** Publish externally completed sign-in to providers that are already mounted. */
 export async function refreshAuthSession(options?: { timeout?: number }): Promise<AuthSession | null> {
+  const generation = clientGeneration;
   const session = await getAuthSession(options);
+  assertAuthGeneration(generation);
   notify(session);
   return session;
 }
 
 export async function getAuthToken(): Promise<string> {
+  const generation = clientGeneration;
   const result = await (await getClient()).token();
+  assertAuthGeneration(generation);
   check(result.error);
   if (!result.data?.token) throw new Error('Sign in again to continue.');
   return result.data.token;
 }
 
+/** A real, current Auth session proves ownership in addition to the short-lived JWT. */
+export async function getAccountDeletionCredentials(expectedAccountId?: string) {
+  const generation = clientGeneration;
+  const client = await getClient();
+  const result = await client.getSession({ fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, timeout: 10000 } });
+  assertAuthGeneration(generation);
+  check(result.error);
+  const user = result.data?.user;
+  const sessionToken = result.data?.session?.token;
+  if (!user?.id || user.emailVerified !== true || !sessionToken || (expectedAccountId && user.id !== expectedAccountId))
+    throw new Error('Sign in to the account you want to delete, then try again.');
+  const token = await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Please try again.');
+  assertAuthGeneration(generation);
+  currentAuthAccountId = user.id;
+  return { accountId: user.id, sessionToken, token };
+}
+
+/** Server deletion already invalidated every session; local cleanup cannot depend on sign-out succeeding. */
+export async function clearAuthAfterAccountDeletion() {
+  clientGeneration++;
+  clientPromise = null;
+  cookie = null;
+  lastNativeSession = null;
+  stagedOAuthCookie = null;
+  verifierAttempts.clear();
+  verificationSentAt.clear();
+  verificationRequests.clear();
+  currentAuthAccountId = undefined;
+  // The server removed A's sessions. An invalid HttpOnly browser cookie cannot
+  // authorize requests; issuing signOut here could instead target a new B cookie.
+  await queueCookieWrite(() => persistCookie(null));
+  await nativeOAuth?.clear();
+  nativeOAuth = null;
+}
+
+export function publishAccountDeletion() { notify(null); }
+
 export async function signIn(email: string, password: string) {
+  const generation = clientGeneration;
   const result = await (await getClient()).signIn.email({ email, password });
+  assertAuthGeneration(generation);
   check(result.error);
   const session = await getAuthSession();
+  assertAuthGeneration(generation);
   if (!session) throw new Error('Sign-in did not create a session. Please try again.');
   notify(session);
   return session;
 }
 
 export async function signUp(email: string, password: string, displayName: string) {
+  const generation = clientGeneration;
   const name = normalizeProfileName(displayName);
   const result = await (await getClient()).signUp.email({ email, password, name });
+  assertAuthGeneration(generation);
   check(result.error);
   if (result.data?.user.emailVerified !== true) {
     // Verification is sent explicitly by this app. Managed Auth's automatic
@@ -200,6 +279,7 @@ export async function signUp(email: string, password: string, displayName: strin
     return null;
   }
   const session = await getAuthSession();
+  assertAuthGeneration(generation);
   if (session) notify(session);
   return session;
 }
@@ -222,11 +302,14 @@ export async function updateDisplayName(displayName: string): Promise<AuthSessio
 
 export async function signOut() {
   if (!authConfigured) return;
+  const generation = clientGeneration;
   check((await (await getClient()).signOut()).error);
+  assertAuthGeneration(generation);
   if (Platform.OS !== 'web') await queueCookieWrite(() => persistCookie(null));
   await nativeOAuth?.clear();
   stagedOAuthCookie = null;
   lastNativeSession = null;
+  assertAuthGeneration(generation);
   notify(null);
 }
 
@@ -299,10 +382,12 @@ function publishNativeSession(session: AuthSession) {
 let lastNativeSession: AuthSession | null = null;
 
 export async function completeNativeAuthCallback(url: string): Promise<AuthSession> {
+  const generation = clientGeneration;
   await getClient();
   if (!nativeOAuth) throw new Error('Please finish signing in from this device.');
   try {
     const session = await nativeOAuth.complete(url, exchangeNativeVerifier);
+    assertAuthGeneration(generation);
     publishNativeSession(session);
     return session;
   } catch (error) {
@@ -317,12 +402,16 @@ export async function cancelNativeAuth() {
   verifierAttempts.clear();
 }
 
+export function nativeAuthReturnPath() { return nativeOAuth?.returnPath(); }
+
 async function signInWithProvider(provider: 'google' | 'apple', callbackURL: string) {
+  const generation = clientGeneration;
   if (!(provider === 'google' ? googleAuthEnabled : appleAuthEnabled))
     throw new Error('This sign-in option is currently unavailable. Use email and password to continue.');
   const client = await getClient();
   if (Platform.OS === 'web') {
     check((await withStartupTimeout(client.signIn.social({ provider, callbackURL }), 'Sign-in took too long. Check your connection and try again.')).error);
+    assertAuthGeneration(generation);
     return;
   }
   try {
@@ -333,7 +422,8 @@ async function signInWithProvider(provider: 'google' | 'apple', callbackURL: str
       check(result.error);
       if (!result.data?.url) throw new Error('Sign-in could not be opened. Please try again.');
       return result.data.url;
-    }, exchangeNativeVerifier);
+    }, exchangeNativeVerifier, callbackURL === '/delete-account' ? '/delete-account' : undefined);
+    assertAuthGeneration(generation);
     if (session) publishNativeSession(session);
     else await discardCancelledOAuthCookie();
   } catch (error) {

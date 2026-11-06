@@ -19,10 +19,11 @@ function secureStorageErrors() {
 }
 const { SecureStorageUnavailableError } = secureStorageErrors();
 
-function harness({ authRead = async () => null, saved = { demo: '1', disclaimer: '1', onboarded: '1' }, purchases = {}, env = {} } = {}) {
+function harness({ authRead = async () => null, saved = { demo: '1', disclaimer: '1', onboarded: '1' }, purchases = {}, env = {}, cleanup = async () => {}, wait = task => task } = {}) {
   const slots = [];
   const storageWrites = [];
   const listeners = new Set();
+  const cleanupCalls = [];
   let cursor = 0;
   let pendingEffects = [];
   let tree;
@@ -68,11 +69,13 @@ function harness({ authRead = async () => null, saved = { demo: '1', disclaimer:
     'react-native-purchases': purchases,
     './neonAuth': {
       authConfigured: true, getAuthSession: () => read(), signOut: async () => {},
+      publishAccountDeletion: () => { listeners.forEach(listener => listener(null)); },
       subscribeAuth: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     },
-    './startupTasks': { StartupTimeoutError, withStartupTimeout: task => task },
+    './startupTasks': { StartupTimeoutError, withStartupTimeout: wait },
     './secureStorage': { SecureStorageUnavailableError },
     './accountDetails': { syncPendingRegistrationDetails: async () => {} },
+    './accountDeletion': { clearDeletedAccountLocalData: async accountId => { cleanupCalls.push(accountId); await cleanup(); } },
   };
   const module = { exports: {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/session.tsx', 'utf8'), {
@@ -89,7 +92,7 @@ function harness({ authRead = async () => null, saved = { demo: '1', disclaimer:
   };
   render();
   return {
-    storageWrites,
+    storageWrites, cleanupCalls,
     value: () => tree.props.value,
     setAuthRead: next => { read = next; },
     emitSession: session => { listeners.forEach(listener => listener(session)); },
@@ -112,6 +115,48 @@ test('missing native secure storage reaches the startup UI with reinstall guidan
   assert.equal(value.disclaimerAccepted, true);
   assert.equal(value.session, null);
   assert.deepEqual(h.storageWrites, [], 'failed native reads must not clear or migrate saved data');
+  h.unmount();
+});
+
+test('cleanup timeout retries await the same physical operation and reset providers only once', async () => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  let cleanupWaits = 0;
+  const h = harness({
+    authRead: async () => ({ user: { id: 'account-a' } }), cleanup: () => gate,
+    wait: (task, message) => message?.startsWith('Your account was deleted') && cleanupWaits++ === 0
+      ? Promise.reject(new Error('Mock UI timeout')) : task,
+  });
+  await h.flush();
+  await assert.rejects(h.value().finishAccountDeletion('account-a'), /Mock UI timeout/);
+  await new Promise(resolve => setImmediate(resolve));
+  const retry = h.value().finishAccountDeletion('account-a');
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(h.cleanupCalls, ['account-a']);
+  assert.equal(h.value().accountDataVersion, 0);
+  release();
+  await retry;
+  await h.flush();
+  assert.equal(h.value().accountDataVersion, 1);
+  assert.equal(h.value().session, null);
+  await h.value().finishAccountDeletion('account-a');
+  await h.flush();
+  assert.deepEqual(h.cleanupCalls, ['account-a']);
+  assert.equal(h.value().accountDataVersion, 1);
+  h.unmount();
+});
+
+test('identity change before physical cleanup preserves the newly signed-in account and local records', async () => {
+  const h = harness({ authRead: async () => ({ user: { id: 'account-a' } }) });
+  await h.flush();
+  const pending = h.value().finishAccountDeletion('account-a');
+  h.emitSession({ user: { id: 'account-b' } });
+  await assert.rejects(pending, error => error.code === 'DELETED_ACCOUNT_CHANGED');
+  await h.flush();
+  assert.deepEqual(h.cleanupCalls, []);
+  assert.equal(h.value().session.user.id, 'account-b');
+  assert.equal(h.value().accountDataVersion, 0);
+  assert.deepEqual(h.storageWrites, []);
   h.unmount();
 });
 

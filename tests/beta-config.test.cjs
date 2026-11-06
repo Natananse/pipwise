@@ -67,7 +67,7 @@ test('Neon Auth and the application backend are required without a Data API', as
   assert(obsolete.some(error => error.includes('EXPO_PUBLIC_NEON_AUTH_URL')));
   assert(obsolete.some(error => error.includes('EXPO_PUBLIC_APP_API_URL')));
   const fallback = { EXPO_PUBLIC_NEON_AUTH_URL: publicEnv.EXPO_PUBLIC_NEON_AUTH_URL, EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL: 'https://pipwise-beta.expo.app/native-auth.html' };
-  assert.deepEqual(check(fallback), []);
+  assert(check(fallback).some(error => error.includes('EXPO_PUBLIC_APP_API_URL')));
 });
 
 test('release endpoint checks reject local, insecure, placeholder, or credential-bearing URLs without printing them', async () => {
@@ -75,6 +75,8 @@ test('release endpoint checks reject local, insecure, placeholder, or credential
   const invalidUrls = [
     'http://ep-pipwise-test.neon.tech/neondb/auth', 'https://localhost/neondb/auth',
     'https://192.168.1.4', 'https://your-neon-auth-host/neondb/auth', 'https://example.com',
+    'https://169.254.2.3', 'https://100.64.0.1', 'https://[::1]',
+    'https://[::ffff:127.0.0.1]', 'https://auth.localhost',
     'https://user:private-password@ep-pipwise-test.neon.tech/neondb/auth',
     'https://ep-pipwise-test.neon.tech/neondb/auth?token=private-token',
     'https://ep-pipwise-test.neon.tech/neondb/auth#private-token', 'not a URL', 42,
@@ -86,6 +88,17 @@ test('release endpoint checks reject local, insecure, placeholder, or credential
       if (typeof url === 'string') assert.equal(errors.join('\n').includes(url), false, 'diagnostics must not print supplied values');
     }
   }
+});
+
+test('release preflight rejects privileged public variable names without exposing their values', async () => {
+  const { checkBetaConfig } = await checker;
+  for (const name of ['EXPO_PUBLIC_DATABASE_URL', 'EXPO_PUBLIC_GOOGLE_OAUTH_CLIENT_SECRET', 'EXPO_PUBLIC_OPENAI_API_KEY', 'EXPO_PUBLIC_SMTP_PASSWORD', 'EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY']) {
+    const errors = checkBetaConfig({ appConfig: app, easConfig: easFixture(), env: { ...publicEnv, [name]: 'sensitive-test-value' } }).errors;
+    assert(errors.some(error => error.includes(name) && error.includes('server environment')));
+    assert.equal(errors.join('\n').includes('sensitive-test-value'), false);
+  }
+  const safe = checkBetaConfig({ appConfig: app, easConfig: easFixture(), env: { ...publicEnv, EXPO_PUBLIC_RC_ANDROID_KEY: 'goog_public-sdk-key', EXPO_PUBLIC_SUPABASE_ANON_KEY: 'sb_publishable_public-key' } });
+  assert.deepEqual(safe.errors, []);
 });
 
 test('Auth URLs need the service path and explicit backend URLs need an origin', async () => {

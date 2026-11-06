@@ -188,5 +188,5 @@ function ChartTools({ mode, onModeChange, tools, width }: { mode: string; onMode
 }
 function HistoricalCaption({ candles, sample = true, moving = false }: { candles?: Candle[]; sample?: boolean; moving?: boolean }) {
   const last = candles?.[candles.length - 1];
-  return <Row style={{ flexWrap: 'wrap' }}><Label muted size={9}>{moving ? 'Simulated history + forming bar · no live feed' : `Candle close · historical ${sample ? 'sample ' : ''}series`}</Label><Label muted size={9}>{last ? new Date(last.time).toISOString().slice(0, 10) : '30 OCT 2026'} · UTC</Label></Row>;
+  return <Row style={{ flexWrap: 'wrap' }}><Label muted size={9}>{moving ? 'Simulated history + forming bar · no live feed' : `Candle close · historical ${sample ? 'sample ' : ''}series`}</Label><Label muted size={9}>{last ? new Date(last.time).toISOString().slice(0, 10) : 'No candle date'} · UTC</Label></Row>;
 }

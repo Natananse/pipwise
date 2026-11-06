@@ -188,7 +188,7 @@ function ProfileWorkspace() {
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="Open Chart coach" onPress={() => router.push('/chart-coach')} style={({ pressed }) => [styles.brokerBanner, { backgroundColor: '#EAF5EC', borderColor: '#CDE3D2', opacity: pressed ? 0.7 : 1 }]}>
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: '#D8ECD9', alignItems: 'center', justifyContent: 'center' }}><Icon name="scan-outline" size={25} color="#2C5837" /></View>
-          <View style={{ flex: 1, gap: 4 }}><Label bold size={15} color={c.ink}>Chart coach</Label><Label size={11} color={c.muted}>{plan === 'free' ? 'Explore a file study preview and trading concepts.' : 'Upload a chart for an educational strategy review.'}</Label></View>
+          <View style={{ flex: 1, gap: 4 }}><Label bold size={15} color={c.ink}>Chart coach</Label><Label size={11} color={c.muted}>Study candle files and prepare your own chart questions.</Label></View>
           <Icon name="chevron-forward" size={21} color="#527B5E" />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Explore the broker comparison guide" onPress={() => setBrokerGuide(true)} style={({ pressed }) => [styles.brokerBanner, { opacity: pressed ? 0.7 : 1 }]}>
@@ -226,7 +226,7 @@ function ProfileWorkspace() {
       <AppButton label={saving ? 'Saving profile…' : 'Save profile'} busy={saving} disabled={saving} onPress={() => { void saveProfile(); }} />
     </Sheet>
     <Sheet visible={brokerGuide} title="Find your broker fit" onClose={() => setBrokerGuide(false)}>
-      <Label muted>Personal broker matching is not connected. Start with these questions when comparing services available in your country.</Label>
+      <Label muted>Use these questions when comparing services available in your country. This guide does not recommend or match you with a broker.</Label>
       {[['Account access', 'Which products, account types and demo tools are available where you live?'], ['Costs to compare', 'Review spreads, commissions, currency conversion, inactivity charges and withdrawal fees.'], ['Your practice routine', 'Try the platform’s charting and order controls in a demo account before committing funds.']].map(([title, detail]) => <View key={title} style={{ gap: 6, padding: 16, borderRadius: 18, backgroundColor: '#F1F5FA' }}><Label bold color={c.ink}>{title}</Label><Label muted size={12}>{detail}</Label></View>)}
       <AppButton label="Keep practicing" onPress={() => { setBrokerGuide(false); router.push({ pathname: '/(tabs)/practice', params: { mode: 'sample' } }); }} />
     </Sheet>

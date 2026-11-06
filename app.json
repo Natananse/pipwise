@@ -11,12 +11,20 @@
       "bundleIdentifier": "io.pipwise.app"
     },
     "android": {
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/android-icon-backgrounds.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "io.pipwise.app"
+      "package": "io.pipwise.app",
+      "versionCode": 4
     },
     "web": {
       "output": "server",

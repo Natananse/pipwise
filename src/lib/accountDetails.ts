@@ -94,6 +94,11 @@ async function clearDraft(): Promise<void> {
   pending = null;
 }
 
+/** Persistence has already been paused/drained after successful server deletion. */
+export async function clearRegistrationAfterAccountDeletion(): Promise<void> {
+  await clearDraft();
+}
+
 /** One short-lived, encrypted native draft survives the email-code step. */
 export function stageRegistrationDetails(email: string, details: AccountDetails): Promise<void> {
   return enqueue(async () => {

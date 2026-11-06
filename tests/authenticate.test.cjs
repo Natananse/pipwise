@@ -8,7 +8,7 @@ const jose = require('jose');
 const issuer = 'https://auth.example.test';
 const subject = '12345678-1234-1234-1234-123456789012';
 
-function load(publicKey, env = { NEON_AUTH_BASE_URL: `${issuer}/neondb/auth` }) {
+function load(publicKey, env = { NEON_AUTH_BASE_URL: `${issuer}/neondb/auth`, DATABASE_URL: 'private-test-connection' }) {
   const module = { exports: {} };
   const keyRequests = [];
   const resolve = jose.createLocalJWKSet({ keys: [publicKey] });
@@ -17,6 +17,7 @@ function load(publicKey, env = { NEON_AUTH_BASE_URL: `${issuer}/neondb/auth` }) 
   }).outputText, {
     module, exports: module.exports, URL, process: { env },
     require(name) {
+      if (name === '@neondatabase/serverless') return { neon() { return async () => [{ id: subject }]; } };
       assert.equal(name, 'jose');
       return { ...jose, createRemoteJWKSet(url) { keyRequests.push(url.href); return resolve; } };
     },
@@ -35,6 +36,7 @@ test('account authentication verifies real EdDSA signatures and the Managed Auth
   }
   const request = value => new Request('https://app.example.test/api/account-details', { headers: { Authorization: `Bearer ${value}` } });
   const valid = await token();
+  await assert.rejects(h.authenticate(request(valid), { activeAccount: async () => false }), error => error.status === 401);
   assert.equal((await h.authenticate(request(valid))).id, subject);
   assert.equal((await h.authenticate(request(valid))).id, subject);
   assert.equal(h.keyRequests.length, 1, 'JWKS resolver should be reused across requests');

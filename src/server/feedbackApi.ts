@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { feedbackAlreadyDelivered, feedbackPayload, type FeedbackCategory, type FeedbackPayload } from '../lib/feedback';
 import { authenticate, HttpError } from './authenticate';
+import { purgeExpiredFeedback } from './feedbackRetention';
 
 type Dependencies = {
   authenticate?: typeof authenticate;
@@ -14,6 +15,7 @@ async function save(payload: FeedbackPayload): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new HttpError(503, 'DATABASE_NOT_CONFIGURED', 'Feedback is temporarily unavailable.');
   const sql = neon(url);
+  await purgeExpiredFeedback(sql);
   // An authenticated server owns this insert. No review data is returned to clients.
   await sql`
     insert into public.beta_feedback

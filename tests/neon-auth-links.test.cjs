@@ -16,7 +16,7 @@ function load(file, imports = {}) {
   return module.exports;
 }
 
-function harness({ platform = 'web', refresh = async () => ({ user: { id: 'tester' } }), nativeComplete = async () => { throw new Error('This sign-in link could not be completed.'); }, timeoutMs } = {}) {
+function harness({ platform = 'web', refresh = async () => ({ user: { id: 'tester' } }), nativeComplete = async () => { throw new Error('This sign-in link could not be completed.'); }, returnPath, timeoutMs } = {}) {
   let refreshCalls = 0;
   const { withStartupTimeout } = load('src/lib/startupTasks.ts');
   const api = load('src/lib/authLinks.ts', {
@@ -25,6 +25,7 @@ function harness({ platform = 'web', refresh = async () => ({ user: { id: 'teste
     './neonAuth': {
       refreshAuthSession: async () => { refreshCalls += 1; return refresh(); },
       completeNativeAuthCallback: nativeComplete,
+      nativeAuthReturnPath: () => returnPath,
     },
     './startupTasks': { withStartupTimeout: (task, message) => withStartupTimeout(task, message, timeoutMs) },
   });
@@ -72,6 +73,14 @@ test('email recovery tokens reach the password form without a signed-in session'
     assert.equal(result.token, 'recovery-token');
     assert.equal(api.refreshCalls(), 0);
   }
+});
+
+test('native deletion reauthentication forwards only the completed controller destination', async () => {
+  const api = harness({ platform: 'android', nativeComplete: async () => ({ user: { id: 'tester' } }), returnPath: '/delete-account' });
+  const result = await api.completeAuthCallback('pipwise://auth-callback?state=pending-state&neon_auth_session_verifier=one-use&returnPath=https://untrusted.example.test');
+  assert.equal(result.destination, '/delete-account');
+  const ordinary = harness({ platform: 'android', nativeComplete: async () => ({ user: { id: 'tester' } }) });
+  assert.equal((await ordinary.completeAuthCallback('pipwise://auth-callback?state=pending-state&neon_auth_session_verifier=one-use&returnPath=/delete-account')).destination, undefined);
 });
 
 test('missing sessions, denied callbacks, and malformed links report failures', async () => {

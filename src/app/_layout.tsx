@@ -18,6 +18,7 @@ import { startupRedirect } from '../lib/startup';
 import { ThemeProvider, ThemeSurface } from '../lib/theme';
 import { CURRENT_ONBOARDING_VERSION, WorkspaceProvider, useWorkspace } from '../lib/workspace';
 import { DemoMarketProvider, useDemoMarketStatus } from '../lib/demoMarketProvider';
+import { resumePersistenceAfterAccountDeletion } from '../lib/persistence';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -34,10 +35,6 @@ function Guard({ fontsReady }: { fontsReady: boolean }) {
   const hasCurrentSetup = onboardingVersion >= CURRENT_ONBOARDING_VERSION;
   const resourcesReady = fontsReady && ready && loaded && demoPricesReady && !error;
   const redirect = resourcesReady ? startupRedirect({ onboarded: onboarded && !onboardingPreviewActive, answersComplete: hasCurrentSetup && hasCompleteOnboardingAnswers(preferences), authenticated: !!session || demo, top, passwordRecovery }) : null;
-
-  useEffect(() => {
-    if (__DEV__) console.info('[PipWise startup]', JSON.stringify({ fontsReady, savedSetupReady: ready, workspaceReady: loaded, onboardingVersion: onboardingVersion ?? 0, onboarded, hasCurrentSetup, setupPreview: onboardingPreviewActive, route: top ?? '/', resourcesReady, splashFinished, hasError: !!error }));
-  }, [error, fontsReady, hasCurrentSetup, loaded, onboarded, onboardingPreviewActive, onboardingVersion, ready, resourcesReady, splashFinished, top]);
 
   useEffect(() => {
     if (redirect) router.replace(redirect);
@@ -62,6 +59,8 @@ function Guard({ fontsReady }: { fontsReady: boolean }) {
 }
 
 export default function Root() {
+  const top = useSegments()[0] as string | undefined;
+  const publicPage = top === 'privacy-policy' || top === 'delete-account';
   const [fontsLoaded, fontError] = useFonts({ ...Ionicons.font, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
   const [fontFallback, setFontFallback] = useState(false);
   useEffect(() => {
@@ -69,7 +68,19 @@ export default function Root() {
     const fallback = setTimeout(() => setFontFallback(true), 5000);
     return () => clearTimeout(fallback);
   }, [fontError, fontsLoaded]);
-  return <SafeAreaProvider><ThemeProvider><SessionProvider><DemoMarketProvider><WorkspaceProvider>
-    <Guard fontsReady={fontsLoaded || !!fontError || fontFallback} />
-  </WorkspaceProvider></DemoMarketProvider></SessionProvider></ThemeProvider></SafeAreaProvider>;
+  return <SafeAreaProvider><ThemeProvider><SessionProvider>
+    <AccountWorkspace fontsReady={fontsLoaded || !!fontError || fontFallback} publicPage={publicPage} />
+  </SessionProvider></ThemeProvider></SafeAreaProvider>;
+}
+
+function AccountWorkspace({ fontsReady, publicPage }: { fontsReady: boolean; publicPage: boolean }) {
+  const { accountDataVersion } = useSession();
+  // Navigation during a timed-out erase must not resume writes before the
+  // physical cleanup completes and advances the account-data generation.
+  useEffect(() => { resumePersistenceAfterAccountDeletion(); }, [accountDataVersion]);
+  // Public pages never wait for a saved wallet, onboarding, or an Auth response.
+  if (publicPage) return <View style={{ flex: 1 }} onLayout={() => SplashScreen.hide()}><Slot /></View>;
+  return <DemoMarketProvider key={accountDataVersion}><WorkspaceProvider>
+    <Guard fontsReady={fontsReady} />
+  </WorkspaceProvider></DemoMarketProvider>;
 }

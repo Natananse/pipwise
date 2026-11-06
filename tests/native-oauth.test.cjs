@@ -242,3 +242,56 @@ test('relay configuration rejects non-HTTPS, non-fixed paths, query and embedded
     assert.equal(h.storage.size, 0);
   }
 });
+
+test('deletion return destination is bound to the encrypted attempt and reused by duplicate completion', async () => {
+  const h = harness();
+  let exchanges = 0;
+  assert.equal(h.controller.returnPath(), undefined);
+  const begin = async url => {
+    assert.equal(new URL(url).searchParams.has('returnPath'), false, 'navigation target must not travel in the relay query');
+    assert.equal([...h.storage.values()].map(value => JSON.parse(value))[0].returnPath, '/delete-account');
+    return h.begin(url);
+  };
+  const exchange = async () => { exchanges++; return session; };
+  assert.equal(await h.controller.start('google', begin, exchange, '/delete-account'), session);
+  assert.equal(h.controller.returnPath(), '/delete-account');
+  assert.equal(await h.controller.complete(`${callbackURL()}&returnPath=https://untrusted.example.test`, exchange), session);
+  assert.equal(exchanges, 1);
+  assert.equal(h.controller.returnPath(), '/delete-account');
+  h.advance(30000);
+  assert.equal(h.controller.returnPath(), undefined, 'completed destination has the same short lifetime as duplicate completion');
+});
+
+test('cold-start deletion reauthentication restores only an allowlisted saved destination', async () => {
+  const first = harness();
+  first.setBrowser(() => new Promise(() => {}));
+  void first.controller.start('google', first.begin, async () => session, '/delete-account');
+  await waitUntil(() => first.opens.length);
+  const second = harness({ storage: first.storage });
+  await second.controller.restore();
+  assert.equal(second.controller.returnPath(), undefined, 'pending state cannot trigger navigation before successful exchange');
+  await assert.rejects(second.controller.complete(callbackURL(nextState), async () => assert.fail('unexpected exchange')));
+  assert.equal(second.controller.returnPath(), undefined);
+  assert.equal(await second.controller.complete(callbackURL(), async () => session), session);
+  assert.equal(second.controller.returnPath(), '/delete-account');
+  await second.controller.clear();
+  assert.equal(second.controller.returnPath(), undefined);
+});
+
+test('unsafe saved or requested return targets cannot authorize navigation', async () => {
+  const key = `${cookies.neonCookieStorageKey(authUrl)}.oauth`;
+  const record = { authUrl, state, createdAt: Date.parse('2026-11-04T12:00:00Z'), challenge: { name: '__Secure-neon-auth.session_challenge', value: 'temporary', expiresAt: Date.parse('2026-11-04T12:10:00Z') } };
+  for (const destination of ['https://untrusted.example.test', '//untrusted.example.test', '/settings', '/delete-account?next=external', 'pipwise://delete-account', null]) {
+    const h = harness({ storage: new Map([[key, JSON.stringify({ ...record, returnPath: destination })]]) });
+    await h.controller.restore();
+    assert.equal(h.storage.size, 0);
+    assert.equal(h.controller.returnPath(), undefined);
+    await assert.rejects(h.controller.complete(callbackURL(), async () => assert.fail('unexpected exchange')), /expired/);
+    await assert.rejects(h.controller.start('google', h.begin, async () => session, destination), /return path/);
+    assert.equal(h.opens.length, 0);
+  }
+  const ordinary = harness();
+  ordinary.setBrowser(async () => ({ type: 'success', url: `${callbackURL()}&returnPath=/delete-account` }));
+  await ordinary.controller.start('google', ordinary.begin, async () => session);
+  assert.equal(ordinary.controller.returnPath(), undefined, 'callback-supplied destination is never trusted');
+});

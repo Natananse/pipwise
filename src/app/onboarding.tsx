@@ -74,7 +74,6 @@ function OnboardingWizard({ initialStep }: { initialStep: OnboardingStep }) {
   });
 
   const next = async () => {
-    if (__DEV__) console.info('[PipWise setup]', JSON.stringify({ event: 'continue', step, valid, saving: saving.current }));
     if (saving.current || !valid) return;
     saving.current = true; setBusy(true); setError('');
     const answers = { experience, markets, goal };
@@ -82,7 +81,6 @@ function OnboardingWizard({ initialStep }: { initialStep: OnboardingStep }) {
       if (step < 3) {
         const nextStep = (step + 1) as OnboardingStep;
         await persistOnboardingDraft(answers, draftLanguage, nextStep);
-        if (__DEV__) console.info('[PipWise setup]', JSON.stringify({ event: 'saved-step', step: nextStep }));
         if (start === 'questions' || start === 'language') router.setParams({ start: undefined });
         lightHaptic(); setStep(nextStep);
       } else if (hasCompleteOnboardingAnswers(answers)) {
@@ -96,7 +94,6 @@ function OnboardingWizard({ initialStep }: { initialStep: OnboardingStep }) {
         setStep(1);
       }
     } catch (cause) {
-      if (__DEV__) console.info('[PipWise setup]', JSON.stringify({ event: 'save-error', step, timedOut: cause instanceof StartupTimeoutError }));
       setError(tx(cause instanceof StartupTimeoutError ? 'Saving took too long. Please try again.' : 'Could not save your setup. Please try again.'));
     }
     finally { saving.current = false; setBusy(false); }

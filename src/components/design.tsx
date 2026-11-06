@@ -17,7 +17,7 @@ export function Label({ children, size = 14, muted = false, bold = false, color,
   return <Text style={[{ color: color || (muted ? colors.sub : colors.text), fontSize: size, fontFamily: bold ? fonts.bold : fonts.medium, lineHeight: size * 1.45, fontVariant: ['tabular-nums'] }, style]}>{children}</Text>;
 }
 export function Brand({ large = false }: { large?: boolean }) {
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><AppLogo size={large ? 96 : 40} />{!large && <Label size={22} bold>Pipswise.</Label>}</View>;
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><AppLogo size={large ? 96 : 40} />{!large && <Label size={22} bold>PipWise.</Label>}</View>;
 }
 export function AppButton({ label, onPress, variant = 'primary', icon, disabled, busy, compact = false }: { label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'danger' | 'ghost'; icon?: keyof typeof Ionicons.glyphMap; disabled?: boolean; busy?: boolean; compact?: boolean }) {
   const { colors } = useTheme();

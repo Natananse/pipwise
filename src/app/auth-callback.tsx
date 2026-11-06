@@ -36,10 +36,10 @@ export default function AuthCallback() {
       const fallback = setTimeout(() => { if (active) setFailure({ url: callbackUrl, attempt, message: 'This sign-in link is incomplete. Open the newest link from your email or return to sign in.' }); }, 10000);
       return () => { active = false; clearTimeout(fallback); };
     }
-    void completeAuthCallback(callbackUrl).then(({ recovery, token }) => {
+    void completeAuthCallback(callbackUrl).then(({ recovery, token, destination }) => {
       if (!active) return;
       if (recovery) beginPasswordRecovery();
-      router.replace(recovery ? { pathname: '/reset-password', params: { token } } : '/auth');
+      router.replace(recovery ? { pathname: '/reset-password', params: { token } } : destination === '/delete-account' ? '/delete-account' : '/auth');
     }).catch(cause => {
       if (active) setFailure({ url: callbackUrl, attempt, message: cause instanceof Error ? cause.message : 'This sign-in link did not finish. Request a new link and try again.' });
     });

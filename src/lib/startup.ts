@@ -5,6 +5,8 @@ export function startupRedirect({ onboarded, answersComplete, authenticated, top
   onboarded: boolean; answersComplete: boolean; authenticated: boolean; top: string | undefined;
   passwordRecovery?: boolean;
 }): StartupRoute | null {
+  // Legal documents and the web deletion form work without onboarding or login.
+  if (top === 'privacy-policy' || top === 'delete-account') return null;
   // Email links must finish restoring their session before ordinary navigation.
   if (top === 'auth-callback' || top === 'reset-password') return null;
   if (passwordRecovery && authenticated) return '/reset-password';

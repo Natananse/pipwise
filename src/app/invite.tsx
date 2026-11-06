@@ -16,7 +16,7 @@ export default function Invite() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 15 }}><Pressable accessibilityRole="button" accessibilityLabel="Back to profile" onPress={() => router.replace('/profile')} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, backgroundColor: c.bg }}><Icon name="arrow-back" color={c.ink} /></Pressable><Label bold size={23} color={c.ink}>Better together</Label></View>
       <View style={{ alignItems: 'center', gap: 16, paddingVertical: 12 }}><AppLogo size={76} /><Label bold size={26} color={c.ink} style={{ textAlign: 'center' }}>Build your trading circle.</Label><Label color={c.muted} style={{ textAlign: 'center', maxWidth: 400 }}>Invite a friend to learn, practice, and compare notes. Every confident trader starts with a little curiosity.</Label></View>
       <ReferralCard />
-      <Label size={11} color={c.muted} style={{ textAlign: 'center' }}>Invitation links open the installed Pipwise app. Invites do not activate Pro or count as verified referrals yet.</Label>
+      <Label size={11} color={c.muted} style={{ textAlign: 'center' }}>Invitation links open the installed PipWise app. They do not activate a paid membership.</Label>
     </ScrollView>
   </SafeAreaView></ThemeSurface>;
 }

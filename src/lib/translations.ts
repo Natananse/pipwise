@@ -8,6 +8,7 @@ const rows: readonly TranslationRow[] = [
   ["Learn", "Aprender", "Apprendre", "Aprender", "تعلّم", "सीखें", "学习", "Belajar", "Jifunze", "ይማሩ"],
   ["Analyse", "Analizar", "Analyser", "Analisar", "تحليل", "विश्लेषण", "分析", "Analisis", "Changanua", "ትንታኔ"],
   ["Top", "Mejores", "Classement", "Destaques", "الأفضل", "शीर्ष", "排行", "Peringkat", "Bora", "ምርጥ"],
+  ["Progress", "Progreso", "Progrès", "Progresso", "التقدم", "प्रगति", "进度", "Kemajuan", "Maendeleo", "እድገት"],
   ["Profile", "Perfil", "Profil", "Perfil", "الملف الشخصي", "प्रोफ़ाइल", "个人资料", "Profil", "Wasifu", "መገለጫ"],
   ["Continue", "Continuar", "Continuer", "Continuar", "متابعة", "जारी रखें", "继续", "Lanjutkan", "Endelea", "ቀጥል"],
   ["Back", "Atrás", "Retour", "Voltar", "رجوع", "वापस", "返回", "Kembali", "Rudi", "ተመለስ"],

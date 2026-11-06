@@ -38,6 +38,9 @@
       "environment": "production",
       "developmentClient": false,
       "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
       "env": {
         "EXPO_PUBLIC_PREVIEW_ONBOARDING": "0"
       }

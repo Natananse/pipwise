@@ -136,6 +136,43 @@ test('missing native secure storage blocks module evaluation and SDK initializat
   assert.equal(h.reads.length, 1);
 });
 
+test('a late session refresh cannot resurrect an account after local deletion', async () => {
+  const h = harness();
+  const changes = [];
+  h.api.subscribeAuth(value => changes.push(value));
+  await h.api.getAuthSession();
+  let resolveRead;
+  h.client.getSession = () => new Promise(resolve => { resolveRead = resolve; });
+  const stale = h.api.refreshAuthSession();
+  await new Promise(resolve => setImmediate(resolve));
+  await h.api.clearAuthAfterAccountDeletion();
+  h.api.publishAccountDeletion();
+  resolveRead({ data: { user, session: { id: 'obsolete' } }, error: null });
+  await assert.rejects(stale, error => error.code === 'AUTH_SESSION_CHANGED');
+  assert.deepEqual(changes, [null]);
+});
+
+test('physical account cleanup blocks new sign-in and never signs out a browser cookie', async () => {
+  const h = harness();
+  await h.api.getAuthSession();
+  let signOuts = 0;
+  h.client.signOut = async () => { signOuts++; return { error: null }; };
+  const unlock = h.api.lockAuthForAccountDeletion(user.id);
+  await assert.rejects(h.api.signIn('other@example.test', 'test-password'), error => error.code === 'ACCOUNT_DELETION_IN_PROGRESS');
+  await h.api.clearAuthAfterAccountDeletion();
+  assert.equal(signOuts, 0);
+  unlock();
+  assert.equal((await h.api.getAuthSession()).user.id, user.id);
+});
+
+test('account cleanup refuses to erase another current identity', async () => {
+  const h = harness();
+  h.session({ ...user, id: 'account-b' });
+  await h.api.getAuthSession();
+  assert.throws(() => h.api.lockAuthForAccountDeletion('account-a'), error => error.code === 'DELETED_ACCOUNT_CHANGED');
+  assert.equal((await h.api.getAuthSession()).user.id, 'account-b');
+});
+
 test('unverified email errors retain the server code needed to resume confirmation', async () => {
   const h = harness();
   h.failSignIn({ code: 'EMAIL_NOT_VERIFIED', message: 'Email is not verified' });

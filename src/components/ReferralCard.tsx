@@ -5,13 +5,15 @@ import { useSession } from '../lib/session';
 import { fonts } from '../lib/theme';
 import { Icon, Label } from './design';
 import { referenceColors as c } from './reference';
+import { createPersistenceQueue } from '../lib/persistence';
 
 let localCodeRequest: Promise<string> | undefined;
+const enqueueInviteSave = createPersistenceQueue();
 function localInviteCode() {
   if (!localCodeRequest) localCodeRequest = AsyncStorage.getItem('pipwise.invite.code.v1').then(async existing => {
     if (existing) return existing;
     const code = `PIP-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
-    await AsyncStorage.setItem('pipwise.invite.code.v1', code);
+    await enqueueInviteSave(() => AsyncStorage.setItem('pipwise.invite.code.v1', code));
     return code;
   }).catch(error => { localCodeRequest = undefined; throw error; });
   return localCodeRequest;
@@ -50,12 +52,9 @@ export function ReferralCard({ compact = false }: { compact?: boolean }) {
     } finally { setSharing(false); }
   };
   return <View style={{ backgroundColor: '#F8F5ED', borderRadius: 26, padding: compact ? 20 : 25, gap: 20, marginTop: 12 }}>
-    <View style={{ backgroundColor: '#FF9392', borderRadius: 99, alignSelf: 'center', paddingHorizontal: 17, paddingVertical: 7, marginTop: -38 }}><Label bold size={11} color="#FFFFFF">INVITE PROGRAM PREVIEW</Label></View>
+    <View style={{ backgroundColor: '#FF9392', borderRadius: 99, alignSelf: 'center', paddingHorizontal: 17, paddingVertical: 7, marginTop: -38 }}><Label bold size={11} color="#FFFFFF">INVITE A FRIEND</Label></View>
     <Label bold size={compact ? 21 : 24} color={c.ink} style={{ textAlign: 'center', lineHeight: 33 }}>INVITE FRIENDS. PRACTICE TOGETHER.</Label>
-    <View style={{ flexDirection: 'row', gap: 8, justifyContent: 'center' }}>
-      {[1, 2, 3, 4, 5].map(number => <View key={number} style={{ width: compact ? 36 : 42, height: compact ? 36 : 42, borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#CEC8DB', alignItems: 'center', justifyContent: 'center' }}><Label bold size={17} color="#A8AAB5">{number}</Label></View>)}
-    </View>
-    <Label size={12} color={c.muted} style={{ textAlign: 'center' }}>Share your code with your study circle. Referral rewards will be announced when the program launches.</Label>
+    <Label size={12} color={c.muted} style={{ textAlign: 'center' }}>Share an invitation with friends who have PipWise installed. Invitations do not include membership rewards.</Label>
     <View style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2E6E9', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 7 }}>
       <Text selectable accessibilityLabel="Your Pipwise invitation link" style={{ fontFamily: fonts.medium, fontSize: 12, color: c.muted, minHeight: 40, paddingVertical: 11 }}>{inviteLink || 'Preparing your invitation…'}</Text>
     </View>

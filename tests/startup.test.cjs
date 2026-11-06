@@ -121,6 +121,14 @@ test('cold confirmation and recovery links finish before onboarding and authenti
   }
 });
 
+test('public privacy and deletion pages are never redirected to onboarding, login or password recovery', () => {
+  for (const top of ['privacy-policy', 'delete-account']) {
+    for (const authenticated of [false, true]) {
+      assert.equal(startupRedirect({ onboarded: false, answersComplete: false, authenticated, passwordRecovery: true, top }), null);
+    }
+  }
+});
+
 test('recovery sessions reach the password form before ordinary app navigation', () => {
   for (const top of [undefined, '(tabs)', 'auth', 'onboarding', 'settings']) {
     for (const onboarded of [false, true]) {
