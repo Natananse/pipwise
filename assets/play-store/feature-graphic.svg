@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500" role="img" aria-labelledby="title description">
+  <title id="title">PipWise — Learn markets. Practice your decisions.</title>
+  <desc id="description">Original promotional illustration of market candles within a lime circle. Virtual funds and simulated prices.</desc>
+  <defs>
+    <pattern id="grid" x="606" y="74" width="44" height="44" patternUnits="userSpaceOnUse">
+      <path d="M 44 0 H 0 V 44" fill="none" stroke="#202622" stroke-opacity="0.09" stroke-width="1"/>
+    </pattern>
+    <clipPath id="illustration"><rect x="606" y="74" width="362" height="352" rx="24"/></clipPath>
+  </defs>
+
+  <rect width="1024" height="500" fill="#F7F5EF"/>
+  <g font-family="Manrope, sans-serif" fill="#202622">
+    <text x="56" y="94" font-size="34" font-weight="800" letter-spacing="-1.2">PipWise</text>
+    <text x="56" y="211" font-size="46" font-weight="800" letter-spacing="-1.8">Learn markets.</text>
+    <text x="56" y="270" font-size="46" font-weight="800" letter-spacing="-1.8">Practice your</text>
+    <text x="56" y="329" font-size="46" font-weight="800" letter-spacing="-1.8">decisions.</text>
+  </g>
+
+  <g clip-path="url(#illustration)">
+    <rect x="606" y="74" width="362" height="352" fill="url(#grid)"/>
+    <circle cx="791" cy="250" r="145" fill="#C8F169"/>
+    <circle cx="791" cy="250" r="169" fill="none" stroke="#202622" stroke-opacity="0.2" stroke-width="1.5"/>
+    <path d="M 639 250 H 943 M 791 98 V 402" fill="none" stroke="#202622" stroke-opacity="0.13" stroke-width="1.5"/>
+
+    <!-- Deliberately mixed candles: an illustration, with no price or profit claim. -->
+    <g stroke="#202622" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M 695 216 V 331 M 759 163 V 280 M 823 196 V 314 M 887 181 V 287" fill="none"/>
+      <rect x="680" y="244" width="30" height="57" rx="4" fill="#202622"/>
+      <rect x="744" y="192" width="30" height="58" rx="4" fill="#F7F5EF"/>
+      <rect x="808" y="224" width="30" height="63" rx="4" fill="#202622"/>
+      <rect x="872" y="211" width="30" height="49" rx="4" fill="#F7F5EF"/>
+    </g>
+    <circle cx="930" cy="111" r="8" fill="#202622"/>
+    <circle cx="648" cy="387" r="6" fill="#202622"/>
+  </g>
+
+  <rect x="56" y="389" width="346" height="43" rx="21.5" fill="#C8F169"/>
+  <text x="76" y="417" font-family="Manrope, sans-serif" font-size="16" font-weight="700" fill="#202622">Virtual funds · Simulated prices</text>
+</svg>

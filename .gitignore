@@ -50,3 +50,7 @@ yarn-error.*
 /ios
 /android
 .neon
+
+# Local operator / agent state (never commit credentials or local sessions)
+/.aws/
+/.codex/
