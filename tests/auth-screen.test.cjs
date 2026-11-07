@@ -59,7 +59,7 @@ function screen({ failureCode = 'EMAIL_NOT_VERIFIED', platform = 'android', soci
     react,
     'react-native': { ...native, Platform: { OS: platform } },
     'expo-router': { router: { push: () => { throw new Error('Unexpected navigation'); } } },
-    'expo-status-bar': { StatusBar: 'StatusBar' },
+    '../components/ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars' },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     '../components/AppLogo': { AppLogo: 'AppLogo' },
     '../components/RegistrationFields': { RegistrationFields: 'RegistrationFields' },

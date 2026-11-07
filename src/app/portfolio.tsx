@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import React, { useMemo, useState } from 'react';
 import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EquityCurve } from '../components/EquityCurve';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { ScreenSystemBars } from '../components/ScreenSystemBars';
 import { AppButton, Chip, EmptyState, ErrorState, GlassCard, Icon, Label, LoadingState, PracticeLabel, Row, Sheet, WorkspaceHeader } from '../components/design';
 import { portfolioAnalytics } from '../lib/analytics';
 import { assets, money, usdNotional } from '../lib/market';
+import { contentBottomPadding, navigationLayout } from '../lib/navigation';
 import { initialWallet, pnl, Position } from '../lib/simulator';
 import { fonts, ThemeSurface, useTheme } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
@@ -26,7 +27,7 @@ function AnalyticsDashboard() {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const wide = width > 1050;
+  const wide = width > navigationLayout.wideBreakpoint;
   const [section, setSection] = useState('Open positions');
   const [filter, setFilter] = useState('All trades');
   const [limit, setLimit] = useState(10);
@@ -44,8 +45,8 @@ function AnalyticsDashboard() {
     { label: 'Profit factor', value: stats.profitFactor === null ? '—' : stats.profitFactor.toFixed(2), detail: stats.grossLoss ? 'Gross profit / gross loss' : 'Needs a losing trade', color: colors.text },
   ];
   return <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, backgroundColor: colors.bg }}>
-    <StatusBar style="dark" />
-    {!loaded || !pricesReady ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: wide ? 40 : 110 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
+    <ScreenSystemBars style="dark" backgroundColor={colors.bg} />
+    {!loaded || !pricesReady ? <LoadingState /> : <ScrollView contentContainerStyle={{ padding: wide ? 32 : 22, paddingBottom: contentBottomPadding({ bottomInset: insets.bottom, wide, tabRoute: false, contentGap: wide ? 40 : 22 }), gap: 24, maxWidth: 1440, width: '100%', alignSelf: 'center' }}>
       <AppButton label="Back to profile" variant="ghost" icon="arrow-back" onPress={() => router.replace('/profile')} /><WorkspaceHeader title="Portfolio analytics" subtitle="PORTFOLIO & PERFORMANCE" />
       <PracticeLabel />
       {!!storageError && <ErrorState message={storageError} />}

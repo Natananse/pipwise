@@ -1,8 +1,9 @@
 import { Link } from 'expo-router';
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { fonts, ThemeSurface } from '../lib/theme';
+import { ScreenSystemBars } from './ScreenSystemBars';
 
 export function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
   return <View style={styles.section}><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>{children}</View>;
@@ -15,7 +16,9 @@ export function LegalText({ children }: { children: React.ReactNode }) {
 /** Public legal pages do not depend on workspace, session or onboarding readiness. */
 export function LegalPage({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return <ThemeSurface tone="light"><SafeAreaView style={styles.screen}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
+    <ScreenSystemBars style="dark" backgroundColor="#F4F6F1" />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={false} contentContainerStyle={styles.content}>
       <Text style={styles.brand}>PIPWISE</Text>
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
@@ -26,6 +29,7 @@ export function LegalPage({ title, subtitle, children }: { title: string; subtit
         <Link href="/" style={styles.link}>Open PipWise</Link>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   </SafeAreaView></ThemeSurface>;
 }
 

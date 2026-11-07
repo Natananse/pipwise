@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import React, { useId } from 'react';
-import { Pressable, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { router, useSegments } from 'expo-router';
+import React, { useId, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { money } from '../lib/market';
 import { summary } from '../lib/simulator';
 import { useDemoMarket } from '../lib/demoMarketProvider';
-import { navigationLayout, tabBarClearance } from '../lib/navigation';
+import { contentBottomPadding, floatingFooterBottom, navigationLayout } from '../lib/navigation';
 import { ThemeSurface } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
 import { ErrorState, Icon, Label, LoadingState, Row } from './design';
+import { ScreenSystemBars } from './ScreenSystemBars';
 
 export const referenceColors = {
   bg: '#F4F6F1', white: '#FFFFFF', ink: '#202622', muted: '#68736A',
@@ -50,12 +50,14 @@ export function ReferenceScreen({ children, header, contentStyle, footer }: { ch
 }
 function ReferenceScreenBody({ children, header, contentStyle, footer }: { children: React.ReactNode; header?: React.ReactNode; contentStyle?: ViewStyle; footer?: React.ReactNode }) {
   const insets = useSafeAreaInsets(); const wide = useWindowDimensions().width > navigationLayout.wideBreakpoint;
-  const dockClearance = tabBarClearance(insets.bottom);
+  const tabRoute = useSegments()[0] === '(tabs)';
+  const [footerHeight, setFooterHeight] = useState(90);
+  const clearance = { bottomInset: insets.bottom, wide, tabRoute };
   const { loaded, storageError } = useWorkspace();
   return <View style={{ flex: 1, backgroundColor: referenceColors.bg, paddingLeft: insets.left, paddingRight: insets.right }}>
-    <StatusBar style="light" />
+    <ScreenSystemBars style={header === undefined ? 'light' : 'dark'} navigationStyle="dark" backgroundColor={referenceColors.bg} />
     {header === undefined ? <ReferenceHeader /> : header}
-    {!loaded ? <LoadingState /> : <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 18, gap: 22, maxWidth: 1120, width: '100%', alignSelf: 'center', ...contentStyle, paddingBottom: (wide ? 32 : dockClearance + 20) + (footer ? 90 : 0) }}>{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView>}
-    {footer && <View style={{ position: 'absolute', left: insets.left, right: insets.right, bottom: wide ? 0 : dockClearance + 10, backgroundColor: referenceColors.bg, borderTopWidth: 1, borderColor: referenceColors.line }}><View style={{ width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 18, paddingVertical: 12 }}>{footer}</View></View>}
+    {!loaded ? <LoadingState /> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 18, gap: 22, maxWidth: 1120, width: '100%', alignSelf: 'center', ...contentStyle, paddingBottom: contentBottomPadding({ ...clearance, contentGap: wide ? 32 : 20, footerHeight: footer ? footerHeight : 0 }) }}>{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView>}
+    {footer && <View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)} style={{ position: 'absolute', left: insets.left, right: insets.right, bottom: floatingFooterBottom(clearance), backgroundColor: referenceColors.bg, borderTopWidth: 1, borderColor: referenceColors.line }}><View style={{ width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 18, paddingVertical: 12 }}>{footer}</View></View>}
   </View>;
 }

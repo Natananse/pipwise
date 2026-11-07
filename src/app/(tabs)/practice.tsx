@@ -1,5 +1,4 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +6,7 @@ import { MarketBadge } from '../../components/MarketBadge';
 import { LiveMarkets } from '../../components/LiveMarkets';
 import { OrderBottomSheet } from '../../components/OrderBottomSheet';
 import { TradingChart } from '../../components/TradingChart';
-import { AppInput, ErrorState, Icon, Label, LoadingState, Row, Sheet } from '../../components/design';
+import { AppInput, ErrorState, Icon, Label, LoadingState, Row, ScreenSystemBars, Sheet } from '../../components/design';
 import { lightHaptic } from '../../lib/haptics';
 import { useDemoMarket } from '../../lib/demoMarketProvider';
 import { Asset, assets, money } from '../../lib/market';
@@ -76,7 +75,7 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   }, [asset.symbol, reducedMotion, reveal]);
 
   return <View style={[styles.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-    <StatusBar style="light" />
+    <ScreenSystemBars style="light" backgroundColor={terminal.bg} />
     <View style={{ paddingTop: insets.top + 12, paddingBottom: 12, paddingHorizontal: 20 }}>
       <Row style={styles.header}>
         <View style={{ flex: 1, gap: 1 }}><Row style={{ justifyContent: 'flex-start', gap: 4 }}><Label bold size={18} color={terminal.text}>pipwise</Label><View style={styles.brandDot} /></Row><Label size={width < 360 ? 8 : 9} color={terminal.muted} style={{ letterSpacing: width < 360 ? 0.4 : 1.2 }}>THE TRADING ROOM</Label></View>

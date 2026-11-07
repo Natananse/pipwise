@@ -1,4 +1,3 @@
-import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
@@ -6,6 +5,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { AvatarId, AvatarPortrait } from '../../components/AvatarPortrait';
 import { RegistrationFields } from '../../components/RegistrationFields';
+import { ScreenSystemBars } from '../../components/ScreenSystemBars';
 import { AppButton, AppInput, Icon, Label, Sheet } from '../../components/design';
 import { referenceColors as c } from '../../components/reference';
 import { lessons } from '../../lib/lessons';
@@ -14,6 +14,7 @@ import { getAccountDetails, saveAccountDetails, syncPendingRegistrationDetails, 
 import { normalizeRegistrationDetails, registrationCountry } from '../../lib/registrationDetails';
 import { useDemoMarket } from '../../lib/demoMarketProvider';
 import { languageInfo } from '../../lib/languages';
+import { contentBottomPadding, floatingFooterBottom, navigationLayout, scrolledSurfaceAtTop } from '../../lib/navigation';
 import { money } from '../../lib/market';
 import { updateDisplayName } from '../../lib/neonAuth';
 import { resolveProfileIdentity } from '../../lib/profileIdentity';
@@ -66,8 +67,16 @@ function ProfileWorkspace() {
   const complete = lessons.filter(lesson => completed.includes(lesson.id)).length;
   const positions = trades === 'Open' ? wallet.positions : wallet.history;
   const nickname = identity.displayName;
-  const wide = width > 1050;
-  const footerSpace = wide ? 40 : 104 + insets.bottom;
+  const wide = width > navigationLayout.wideBreakpoint;
+  const clearance = { bottomInset: insets.bottom, wide, tabRoute: true };
+  const footerSpace = contentBottomPadding({ ...clearance, contentGap: wide ? 40 : 22 });
+  const [heroEnd, setHeroEnd] = useState(wide ? 300 : 268 + insets.top);
+  const [bodyAtTop, setBodyAtTop] = useState(false);
+  const scrollOffset = useRef(0);
+  const updateTopSurface = (offset: number, darkSurfaceEnd = heroEnd) => {
+    const next = scrolledSurfaceAtTop({ scrollOffset: offset, surfaceTop: darkSurfaceEnd });
+    if (next !== bodyAtTop) setBodyAtTop(next);
+  };
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -132,9 +141,16 @@ function ProfileWorkspace() {
   };
 
   return <View style={{ flex: 1, backgroundColor: c.bg }}>
-    <StatusBar style="light" />
-    <ScrollView ref={scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: footerSpace, flexGrow: 1 }}>
-      <View style={{ height: wide ? 300 : 268 + insets.top, backgroundColor: c.charcoal }}>
+    <ScreenSystemBars style={bodyAtTop ? 'dark' : 'light'} navigationStyle="dark" backgroundColor={c.bg} />
+    <ScrollView ref={scroll} showsVerticalScrollIndicator={false} scrollEventThrottle={16} onScroll={event => {
+      scrollOffset.current = event.nativeEvent.contentOffset.y;
+      updateTopSurface(scrollOffset.current);
+    }} contentContainerStyle={{ paddingBottom: footerSpace, flexGrow: 1 }}>
+      <View onLayout={event => {
+        const end = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
+        setHeroEnd(end);
+        updateTopSurface(scrollOffset.current, end);
+      }} style={{ height: wide ? 300 : 268 + insets.top, backgroundColor: c.charcoal }}>
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id="profile-hero" x1="0%" y1="0%" x2="100%" y2="100%"><Stop offset="0" stopColor={c.heroStart} /><Stop offset="1" stopColor={c.heroEnd} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#profile-hero)" /><Rect y="99%" width="100%" height="1%" fill={c.mint} opacity={0.35} /></Svg>
         <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, alignItems: 'center', width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 20 }}>
           <View style={{ alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: 12 }}>
@@ -149,7 +165,7 @@ function ProfileWorkspace() {
           <Text numberOfLines={1} style={{ color: '#FFFFFFD9', fontSize: 11, fontFamily: fonts.medium, marginTop: 3 }}>{identity.email || (demo ? 'Your virtual trading journey' : 'Your personal practice workspace')}</Text>
         </SafeAreaView>
       </View>
-      <View style={{ maxWidth: 1000, width: '100%', alignSelf: 'center', paddingHorizontal: wide ? 30 : 16, marginTop: -31, gap: 20 }}>
+      <View style={{ maxWidth: 1000, width: '100%', alignSelf: 'center', paddingLeft: (wide ? 30 : 16) + insets.left, paddingRight: (wide ? 30 : 16) + insets.right, marginTop: -31, gap: 20 }}>
         <View onLayout={event => setCardWidth(event.nativeEvent.layout.width)} style={styles.statsCard}>
           <ScrollView ref={carousel} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setPage(Math.round(event.nativeEvent.contentOffset.x / Math.max(1, event.nativeEvent.layoutMeasurement.width)))}>
             <View style={[styles.statPage, { width: cardWidth }]}>
@@ -213,7 +229,7 @@ function ProfileWorkspace() {
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, gap: 10 }}><Text style={{ color: c.muted, fontFamily: fonts.medium, fontSize: 10, flex: 1 }}>Practice money · Simulated market quotes</Text><Pressable accessibilityRole="button" accessibilityLabel="Open profile settings" onPress={() => router.push('/settings')} style={({ pressed }) => ({ minHeight: 40, justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Text style={{ fontFamily: fonts.bold, color: c.blue, fontSize: 11 }}>Settings</Text></Pressable></View>
       </View>
     </ScrollView>
-    <Pressable accessibilityRole="button" accessibilityLabel="Scroll profile to top" onPress={() => scroll.current?.scrollTo({ y: 0, animated: true })} style={({ pressed }) => ({ position: 'absolute', right: 16, bottom: wide ? 20 : 91 + Math.max(insets.bottom, 8), width: 40, height: 40, borderRadius: 20, backgroundColor: c.ink, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1, borderWidth: 2, borderColor: '#FFFFFF' })}><Icon name="arrow-up" size={21} color="#FFFFFF" /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Scroll profile to top" onPress={() => scroll.current?.scrollTo({ y: 0, animated: true })} style={({ pressed }) => ({ position: 'absolute', right: insets.right + 16, bottom: floatingFooterBottom({ ...clearance, gap: wide ? 20 : 10 }), width: 40, height: 40, borderRadius: 20, backgroundColor: c.ink, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1, borderWidth: 2, borderColor: '#FFFFFF' })}><Icon name="arrow-up" size={21} color="#FFFFFF" /></Pressable>
     <Sheet visible={editor} title="Edit your profile" onClose={() => { if (!submitting.current) setEditor(false); }}>
       <View style={{ alignItems: 'center', paddingVertical: 8 }}><AvatarPortrait avatar={draftAvatar} size={100} /></View>
       <AppInput label="Full name" value={draftName} onChangeText={setDraftName} maxLength={profileNameMaxLength} autoCapitalize="words" autoComplete="name" textContentType="name" autoCorrect={false} editable={!saving} placeholder="Your name" onSubmitEditing={() => { void saveProfile(); }} returnKeyType="done" />

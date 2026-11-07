@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../lib/theme";
+import { ScreenSystemBars } from './ScreenSystemBars';
 
 export function Screen({
   children,
@@ -23,6 +24,7 @@ export function Screen({
     <SafeAreaView
       style={[{ flex: 1, backgroundColor: colors.bg, padding: 24 }, style]}
     >
+      <ScreenSystemBars style={colors.bg === '#0D1011' ? 'light' : 'dark'} backgroundColor={colors.bg} />
       {children}
     </SafeAreaView>
   );

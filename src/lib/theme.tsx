@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import { StartupSystemBars } from '../components/ScreenSystemBars';
 
 export type Mode = 'system' | 'light' | 'dark';
 export const fonts = {
@@ -43,8 +44,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={{ colors: isDark ? dark : light, mode, setMode }}>{children}</Ctx.Provider>;
 }
 /** A visual surface override; the user's saved appearance preference is untouched. */
-export function ThemeSurface({ tone, children }: { tone: 'light' | 'dark'; children: React.ReactNode }) {
+export function ThemeSurface({ tone, children, systemBars = false }: { tone: 'light' | 'dark'; children: React.ReactNode; systemBars?: boolean }) {
   const theme = useContext(Ctx);
-  return <Ctx.Provider value={{ ...theme, colors: tone === 'light' ? light : dark }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ ...theme, colors: tone === 'light' ? light : dark }}>{systemBars && <StartupSystemBars />}{children}</Ctx.Provider>;
 }
 export const useTheme = () => useContext(Ctx);

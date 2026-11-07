@@ -78,7 +78,7 @@ export default function Feedback() {
     finally { working.current = false; setBusy(false); }
   };
 
-  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
     <ReferenceScreen contentStyle={{ maxWidth: 620 }}>
       <AppButton label="Back to settings" icon="arrow-back" variant="ghost" onPress={() => router.replace('/settings')} disabled={busy} />
       <View style={{ gap: 7 }}><Label bold size={30} color={c.ink}>Help shape PipWise.</Label><Label size={13} color={c.muted}>Share what you enjoyed, what felt confusing, or what needs fixing.</Label></View>

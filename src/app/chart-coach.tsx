@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Share, Text, View } from 'react-native';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppButton, AppInput, Badge, Chip, ErrorState, GlassCard, Icon, Label, Row } from '../components/design';
 import { TradingChart } from '../components/TradingChart';
+import { ScreenSystemBars } from '../components/ScreenSystemBars';
 import { getCoachStatus, reviewChartPhoto, type CoachStatus } from '../lib/chartCoachClient';
 import { buildChartCoachHandoff } from '../lib/chartCoachHandoff';
 import { parseReviewCandles, reviewCandles, reviewStrategies, validateReviewInput, type FileReview, type ReviewStrategy } from '../lib/chartReview';
@@ -144,7 +145,9 @@ function CoachScreen() {
   };
 
   return <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FA' }} edges={['top', 'left', 'right', 'bottom']}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: 50, gap: 18, maxWidth: 760, width: '100%', alignSelf: 'center' }}>
+    <ScreenSystemBars style="dark" backgroundColor="#F5F7FA" />
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={false} contentContainerStyle={{ padding: 20, paddingBottom: 50, gap: 18, maxWidth: 760, width: '100%', alignSelf: 'center' }}>
       <Row><AppButton compact variant="ghost" label="Back" icon="arrow-back" onPress={() => router.back()} /><Badge>CHART COACH · FREE LOCAL STUDIES</Badge></Row>
       <View style={{ gap: 8 }}><Label bold size={30}>Read the chart. Build a plan.</Label><Label muted>Study candle files on this device, or prepare a prompt to use in your own ChatGPT conversation.</Label></View>
       <GlassCard>
@@ -197,5 +200,6 @@ function CoachScreen() {
       {photoReport && <GlassCard><Badge>AI INTERPRETATION · VERIFY THE DETAILS</Badge><Label muted size={11}>{photoReport.source} · {new Date(photoReport.generatedAt).toLocaleString()}</Label><Label>{photoReport.review}</Label></GlassCard>}
       <Label muted size={11}>Educational practice only. Chart patterns and AI interpretations do not reliably predict future prices or guarantee returns. Review the assumptions and use virtual funds to test your ideas.</Label>
     </ScrollView>
+    </KeyboardAvoidingView>
   </SafeAreaView>;
 }

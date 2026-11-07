@@ -1,9 +1,10 @@
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, View } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ScreenSystemBars } from '../components/ScreenSystemBars';
+import { contentBottomPadding } from '../lib/navigation';
 import { AppButton, Icon, Label, Sheet } from '../components/design';
 import { ProIllustration } from '../components/ProIllustration';
 import { ReferralCard } from '../components/ReferralCard';
@@ -36,6 +37,7 @@ export default function Paywall() {
 
 function ProScreen() {
   const { plan, ready, session, leaveDemo, refreshPlan, preparePurchases } = useSession();
+  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<BillingCycle>('yearly');
   const [packages, setPackages] = useState<Packages>({});
   const [loading, setLoading] = useState(true);
@@ -110,8 +112,8 @@ function ProScreen() {
   const monthlyEquivalent = packages.yearly?.product.pricePerMonthString;
 
   return <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'left', 'right']}>
-    <StatusBar style="dark" />
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ width: '100%', maxWidth: 640, alignSelf: 'center', paddingBottom: 45 }}>
+    <ScreenSystemBars style="dark" backgroundColor="#FFFFFF" />
+    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ width: '100%', maxWidth: 640, alignSelf: 'center', paddingBottom: contentBottomPadding({ bottomInset: insets.bottom, wide: false, tabRoute: false, contentGap: 45 }) }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to profile" onPress={() => router.replace('/profile')} style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: c.bg, opacity: pressed ? 0.6 : 1 })}><Icon name="close" color={c.ink} size={22} /></Pressable>
         <Label bold size={13} color={c.ink}>PIPWISE <Label bold size={13} color={c.blue}>PRO</Label></Label>

@@ -47,7 +47,7 @@ function Guard({ fontsReady }: { fontsReady: boolean }) {
   const covered = !resourcesReady || !splashFinished || !!redirect;
   return <View style={{ flex: 1, backgroundColor: '#0C100F' }} onLayout={() => setLaidOut(true)}>
     <View style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} aria-hidden={covered}><Slot /></View>
-    {covered && <View style={StyleSheet.absoluteFill}><ThemeSurface tone="dark">
+    {covered && <View style={StyleSheet.absoluteFill}><ThemeSurface tone="dark" systemBars>
       {fontsReady && error ? <SafeAreaView style={{ flex: 1, backgroundColor: '#0C100F', padding: 24, justifyContent: 'center', gap: 24 }}>
         <WelcomeArtwork compact reducedMotion />
         <Label bold size={24} style={{ textAlign: 'center' }}>Let’s get you back in.</Label>

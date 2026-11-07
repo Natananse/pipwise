@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/android-icon-backgrounds.png",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0D1011",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "io.pipwise.app"
@@ -23,6 +24,7 @@
         "foregroundImage": "./assets/android-icon-backgrounds.png"
       },
       "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "resize",
       "package": "io.pipwise.app",
       "versionCode": 4
     },
@@ -33,6 +35,15 @@
     "plugins": [
       "expo-router",
       "expo-web-browser",
+      "expo-system-ui",
+      [
+        "expo-status-bar",
+        { "style": "light", "hidden": false }
+      ],
+      [
+        "expo-navigation-bar",
+        { "style": "light", "hidden": false, "enforceContrast": false }
+      ],
       [
         "expo-splash-screen",
         {

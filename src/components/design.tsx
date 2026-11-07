@@ -1,11 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import React, { useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { fonts, ThemeSurface, useTheme } from '../lib/theme';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fonts, ThemeSurface, useTheme, type Colors } from '../lib/theme';
+import { contentBottomPadding, navigationLayout } from '../lib/navigation';
 import { useWorkspace } from '../lib/workspace';
 import { AppLogo } from './AppLogo';
+import { ModalSystemBars, ScreenSystemBars } from './ScreenSystemBars';
+export { ScreenSystemBars };
 // Compatibility for screens outside this restyle; new screens use colors directly.
 export const tokens = { space: 24, radius: 24, lime: '#C8F169', navy: '#0D1011', red: '#B83A33', green: '#117A4B' };
 export function Icon({ name, size = 20, color }: { name: keyof typeof Ionicons.glyphMap; size?: number; color?: string }) {
@@ -59,9 +62,28 @@ export function ErrorState({ message, retry }: { message: string; retry?: () => 
   const { colors } = useTheme();
   return <View accessibilityRole="alert" style={{ padding: 16, gap: 8 }}><Label color={colors.down}>{message}</Label>{retry && <AppButton label="Try again" onPress={retry} variant="secondary" />}</View>;
 }
-export function Sheet({ visible, onClose, title, children }: { visible: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
-  const { colors } = useTheme(); const { width } = useWindowDimensions();
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}><ThemeSurface tone="light"><View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: width > 700 ? 'center' : 'flex-end', alignItems: 'center' }}><Pressable accessibilityLabel="Close dialog" accessibilityRole="button" onPress={onClose} style={StyleSheet.absoluteFill} /><SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: colors.sheet, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: width > 700 ? 32 : 0, borderBottomRightRadius: width > 700 ? 32 : 0, padding: 24 }}><View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.sheetBorder, alignSelf: 'center', marginBottom: 16 }} /><Row><Label size={22} bold style={{ flex: 1 }}>{title}</Label><IconButton name="close" label="Close" onPress={onClose} /></Row><ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingTop: 24, paddingBottom: 16 }}>{children}</ScrollView></SafeAreaView></View></ThemeSurface></Modal>;
+type SheetProps = { visible: boolean; onClose: () => void; title: string; children: React.ReactNode };
+export function Sheet({ visible, onClose, title, children }: SheetProps) {
+  const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const content = <ThemeSurface tone="light">{visible && <ModalSystemBars centered={width > 700} />}<SheetContent colors={colors} onClose={onClose} title={title}>{children}</SheetContent></ThemeSurface>;
+  return <Modal visible={visible} transparent statusBarTranslucent navigationBarTranslucent animationType="fade" onRequestClose={onClose}>
+    {Platform.OS === 'web' ? content : <SafeAreaProvider>{content}</SafeAreaProvider>}
+  </Modal>;
+}
+function SheetContent({ colors, onClose, title, children }: Omit<SheetProps, 'visible'> & { colors: Colors }) {
+  const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  return <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.overlay, paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, justifyContent: width > 700 ? 'center' : 'flex-end', alignItems: 'center' }}>
+      <Pressable accessibilityLabel="Close dialog" accessibilityRole="button" onPress={onClose} style={StyleSheet.absoluteFill} />
+      <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: colors.sheet, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: width > 700 ? 32 : 0, borderBottomRightRadius: width > 700 ? 32 : 0, padding: 24 }}>
+        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.sheetBorder, alignSelf: 'center', marginBottom: 16 }} />
+        <Row><Label size={22} bold style={{ flex: 1 }}>{title}</Label><IconButton name="close" label="Close" onPress={onClose} /></Row>
+        <ScrollView automaticallyAdjustKeyboardInsets={false} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingTop: 24, paddingBottom: 16 }}>{children}</ScrollView>
+      </SafeAreaView>
+    </View>
+  </KeyboardAvoidingView>;
 }
 export function ConfirmationDialog({ visible, title, detail, onClose, onConfirm }: { visible: boolean; title: string; detail: string; onClose: () => void; onConfirm: () => void }) {
   return <Sheet visible={visible} title={title} onClose={onClose}><Label muted>{detail}</Label><AppButton label="Confirm" onPress={onConfirm} /><AppButton label="Cancel" variant="secondary" onPress={onClose} /></Sheet>;
@@ -75,5 +97,9 @@ export function WorkspaceHeader({ title, subtitle }: { title: string; subtitle?:
 }
 export function Page({ children, title, subtitle }: { children: React.ReactNode; title: string; subtitle: string }) {
   const { colors } = useTheme(); const { width } = useWindowDimensions(); const { storageError } = useWorkspace(); const [notice, setNotice] = useState(false); const insets = useSafeAreaInsets();
-  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'left', 'right']}><ScrollView contentContainerStyle={{ padding: width > 1050 ? 32 : 22, paddingBottom: width > 1050 ? 32 : 104 + Math.max(insets.bottom, 14), gap: 24, maxWidth: 1600, width: '100%', alignSelf: 'center' }}><Row style={{ flexWrap: 'wrap' }}><Brand /><Row><Badge>SIMULATOR</Badge><IconButton name="notifications-outline" label="Notifications" onPress={() => setNotice(true)} /><IconButton name="person-outline" label="Profile" onPress={() => router.push('/profile')} /></Row></Row><WorkspaceHeader title={title} subtitle={subtitle} /><PracticeLabel />{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView><Sheet visible={notice} title="Notifications" onClose={() => setNotice(false)}><EmptyState title="You're all caught up" detail="Order confirmations appear in your trading history. No live market alerts are connected." icon="notifications-outline" /></Sheet></SafeAreaView>;
+  const segments = useSegments();
+  const wide = width > navigationLayout.wideBreakpoint;
+  const padding = wide ? 32 : 22;
+  const bottomPadding = contentBottomPadding({ bottomInset: insets.bottom, wide, tabRoute: segments[0] === '(tabs)', contentGap: padding });
+  return <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={['top', 'left', 'right']}><ScreenSystemBars style={colors.bg === colors.darkBg ? 'light' : 'dark'} backgroundColor={colors.bg} /><ScrollView automaticallyAdjustKeyboardInsets={false} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding, paddingBottom: bottomPadding, gap: 24, maxWidth: 1600, width: '100%', alignSelf: 'center' }}><Row style={{ flexWrap: 'wrap' }}><Brand /><Row><Badge>SIMULATOR</Badge><IconButton name="notifications-outline" label="Notifications" onPress={() => setNotice(true)} /><IconButton name="person-outline" label="Profile" onPress={() => router.push('/profile')} /></Row></Row><WorkspaceHeader title={title} subtitle={subtitle} /><PracticeLabel />{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView><Sheet visible={notice} title="Notifications" onClose={() => setNotice(false)}><EmptyState title="You're all caught up" detail="Order confirmations appear in your trading history. No live market alerts are connected." icon="notifications-outline" /></Sheet></SafeAreaView>;
 }

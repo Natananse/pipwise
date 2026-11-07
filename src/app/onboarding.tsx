@@ -1,10 +1,10 @@
-import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, BackHandler, Easing, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppLogo } from '../components/AppLogo';
 import { LanguageSelector } from '../components/LanguageSelector';
+import { ScreenSystemBars } from '../components/ScreenSystemBars';
 import { Icon, Label, Row } from '../components/design';
 import { lightHaptic } from '../lib/haptics';
 import { Language, languages } from '../lib/languages';
@@ -108,7 +108,7 @@ function OnboardingWizard({ initialStep }: { initialStep: OnboardingStep }) {
   };
 
   return <SafeAreaView style={styles.screen}>
-    <StatusBar style="dark" />
+    <ScreenSystemBars style="dark" backgroundColor="#F4F3EF" />
     <View style={styles.frame}>
       <Row style={{ ...styles.header, flexDirection: rtl ? 'row-reverse' : 'row' }}>
         <Row style={{ justifyContent: 'flex-start', flexDirection: rtl ? 'row-reverse' : 'row', gap: 10 }}>

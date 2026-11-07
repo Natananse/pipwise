@@ -1,5 +1,4 @@
 import { router, useIsFocused } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +8,7 @@ import { getProviderChart } from '../lib/providerCharts';
 import { useWorkspace } from '../lib/workspace';
 import { MarketBadge } from './MarketBadge';
 import { ProviderChart } from './ProviderChart';
-import { Icon, Label, Row } from './design';
+import { Icon, Label, Row, ScreenSystemBars } from './design';
 
 const c = { bg: '#0C100F', card: '#151B18', border: '#29332D', text: '#F4F6EF', muted: '#A0AAA2', mint: '#6EE7BE' };
 const subscribeToHydration = () => () => {};
@@ -42,7 +41,7 @@ export function LiveMarkets({ embedded = false, initialSymbol = 'EUR/USD', onPra
   }, []);
 
   return <View style={[s.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-    <StatusBar style="light" />
+    <ScreenSystemBars style="light" backgroundColor={c.bg} />
     <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 12 }}>
       <Row style={s.header}>
         {!embedded && <IconButton label="Back to Trade" name="arrow-back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/practice')} />}

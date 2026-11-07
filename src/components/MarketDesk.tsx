@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { ScreenSystemBars } from './ScreenSystemBars';
 import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -58,7 +58,7 @@ export function MarketDesk() {
   };
 
   return <View style={[s.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
-    <StatusBar style="light" />
+    <ScreenSystemBars style="light" backgroundColor={c.bg} />
     <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderColor: c.line }}>
       <Row style={s.header}>
         <Action label="Back to practice" icon="arrow-back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/practice')} />

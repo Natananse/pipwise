@@ -69,11 +69,12 @@ function screen({ signedIn = false, coachStatus = { available: false, provider: 
     react,
     'expo-router': { router: { back() {}, push: value => calls.push({ route: value }) } },
     'expo-linking': { openURL: async value => calls.push({ url: value }) },
-    'react-native': { ...Object.fromEntries(['Image', 'Pressable', 'ScrollView', 'Text', 'View'].map(value => [value, value])),
+    'react-native': { ...Object.fromEntries(['Image', 'KeyboardAvoidingView', 'Pressable', 'ScrollView', 'Text', 'View'].map(value => [value, value])), Platform: { OS: 'android' },
       Share: { dismissedAction: 'dismissedAction', share: async value => { calls.push({ share: value }); return { action: 'sharedAction' }; } } },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     '../components/design': Object.fromEntries(['AppButton', 'AppInput', 'Badge', 'Chip', 'ErrorState', 'GlassCard', 'Icon', 'Label', 'Row'].map(value => [value, value])),
     '../components/TradingChart': { TradingChart: 'TradingChart' },
+    '../components/ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars' },
     '../lib/chartCoachClient': {
       getCoachStatus: async () => coachStatus,
       reviewChartPhoto: async (_input, _upload, _signal, account, provider) => { calls.push({ connectedReview: { account, provider } }); return { review: 'A completed study', source: 'OpenAI', generatedAt: now }; },

@@ -1,10 +1,10 @@
 import { router } from "expo-router";
-import { StatusBar } from "expo-status-bar";
 import React, { useRef, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppLogo } from "../components/AppLogo";
 import { RegistrationFields } from "../components/RegistrationFields";
+import { ScreenSystemBars } from "../components/ScreenSystemBars";
 import { AccountAccessError, AccountVerificationError, appleAuthEnabled, googleAuthEnabled, signIn, signUp as createAccount, verifyEmail, resendVerification, requestPasswordReset, signInWithGoogle, signInWithApple } from "../lib/neonAuth";
 import { useSession } from "../lib/session";
 import { useWorkspace } from "../lib/workspace";
@@ -133,9 +133,11 @@ export default function Auth() {
   const title = t(reset ? "Reset password" : signUp ? "Create account" : "Welcome back");
   return <ThemeSurface tone="light">
     <SafeAreaView style={styles.screen}>
-      <StatusBar style="dark" />
-      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === "ios" ? "padding" : Platform.OS === "android" ? "height" : undefined}>
+      <ScreenSystemBars style="dark" backgroundColor={ivory} />
+      <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === "web" ? undefined : "padding"}>
       <ScrollView
+        automaticallyAdjustKeyboardInsets={false}
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
         contentContainerStyle={[styles.content, { paddingHorizontal: width < 360 ? 18 : 24 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

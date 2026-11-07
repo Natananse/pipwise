@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Keyboard, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { navigationLayout } from '../lib/navigation';
 import { fonts } from '../lib/theme';
@@ -33,6 +33,14 @@ export function FloatingTabBar({ state, descriptors, emitter, navigateToTab }: T
   const offset = wide ? selectedIndex * (railItemHeight + railGap) : selectedIndex * slotWidth;
   const [position] = useState(() => new Animated.Value(0));
   const previousLayout = useRef('');
+  const [keyboardVisible, setKeyboardVisible] = useState(() => Platform.OS !== 'web' && Keyboard.isVisible());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   useEffect(() => {
     const layout = `${wide}:${measuredWidth}`;
@@ -51,6 +59,7 @@ export function FloatingTabBar({ state, descriptors, emitter, navigateToTab }: T
     previousLayout.current = layout;
   }, [measuredWidth, offset, position, reducedMotion, wide]);
 
+  if (keyboardVisible) return null;
   return <View pointerEvents="box-none" style={wide ? [styles.rail, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }] : [styles.mobile, { bottom: insets.bottom + navigationLayout.dockBottomGap, left: insets.left + navigationLayout.dockSideGap, right: insets.right + navigationLayout.dockSideGap }]}>
     <View onLayout={event => setMeasuredWidth(event.nativeEvent.layout.width)} style={[styles.dock, wide ? styles.railDock : styles.mobileDock]}>
       {measuredWidth > 0 && selectedIndex >= 0 && <Animated.View pointerEvents="none" style={[styles.indicator, {
