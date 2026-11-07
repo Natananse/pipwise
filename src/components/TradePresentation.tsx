@@ -8,8 +8,8 @@ import { tradeColors as c, tradeRadii as r, tradeSpace as s, tradeType as t } fr
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { ScreenSystemBars } from './ScreenSystemBars';
 
-export function TradeSurface({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[styles.screen, style]}><ScreenSystemBars style="dark" backgroundColor={c.bg} />{children}</View>;
+export function TradeSurface({ children, style, onTouchStart }: { children: React.ReactNode; style?: ViewStyle; onTouchStart?: () => void }) {
+  return <View onTouchStart={onTouchStart} style={[styles.screen, style]}><ScreenSystemBars style="dark" backgroundColor={c.bg} immersive />{children}</View>;
 }
 
 export function TradeTopBar({ equity, onInfo, topInset }: { equity: string; onInfo: () => void; topInset: number }) {
@@ -36,7 +36,7 @@ export function TradeSparkline({ candles, positive }: { candles: readonly Candle
   return <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Svg width={48} height={22} viewBox="0 0 48 22"><Path d={path} stroke={positive ? c.up : c.down} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" /></Svg></View>;
 }
 
-export function TradeHeroQuote({ asset, quote, paused }: { asset: Asset; quote: string; paused: boolean }) {
+export function TradeHeroQuote({ asset, quote, paused, compact = false }: { asset: Asset; quote: string; paused: boolean; compact?: boolean }) {
   const reducedMotion = useReducedMotion();
   const previous = useRef({ symbol: asset.symbol, price: asset.price });
   const [move, setMove] = useState(0);
@@ -61,7 +61,7 @@ export function TradeHeroQuote({ asset, quote, paused }: { asset: Asset; quote: 
   const positive = asset.change >= 0;
   return <View style={styles.hero}>
     <Animated.View pointerEvents="none" style={[styles.glow, { backgroundColor: move < 0 ? c.negativeTint : c.positiveTint, opacity: glow }]} />
-    <Animated.Text accessibilityLabel={`Current simulated price ${quote}`} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.heroPrice, { opacity: reveal, transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [3, 0] }) }] }]}>{quote}</Animated.Text>
+    <Animated.Text accessibilityLabel={`Current simulated price ${quote}`} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.heroPrice, compact && { fontSize: 34, lineHeight: 44, letterSpacing: -1 }, { opacity: reveal, transform: [{ translateY: reveal.interpolate({ inputRange: [0, 1], outputRange: [3, 0] }) }] }]}>{quote}</Animated.Text>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: s.xs, flexWrap: 'wrap' }}>
       <Text style={[styles.change, { color: positive ? c.up : c.down }]}>{positive ? '↗ +' : '↘ '}{asset.change.toFixed(2)}%</Text>
       {paused && <Text accessibilityLiveRegion="polite" style={styles.caption}>Paused</Text>}
@@ -69,8 +69,8 @@ export function TradeHeroQuote({ asset, quote, paused }: { asset: Asset; quote: 
   </View>;
 }
 
-export function TradeChartCard({ children }: { children: React.ReactNode }) {
-  return <View style={styles.chartCard}>{children}</View>;
+export function TradeChartCard({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+  return <View style={[styles.chartCard, style]}>{children}</View>;
 }
 
 export function TradeFooter({ children, bottomSpace, leftInset, rightInset }: { children: React.ReactNode; bottomSpace: number; leftInset: number; rightInset: number }) {

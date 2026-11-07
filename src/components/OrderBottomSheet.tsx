@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View } from "react-native";
 import { Asset, money, price, usdNotional } from "../lib/market";
 import { Direction, feeRate, Position } from "../lib/simulator";
 import { useDemoMarket } from '../lib/demoMarketProvider';
 import { useWorkspace } from "../lib/workspace";
 import { useTheme } from "../lib/theme";
+import { estimateOrderRisk } from '../lib/orderRisk';
+import { RiskRing } from './RiskRing';
 import {
   AppButton,
   AppInput,
@@ -21,11 +23,15 @@ export function OrderBottomSheet({
   direction,
   onClose,
   embedded = false,
+  onInputFocus,
+  onInputBlur,
 }: {
   asset: Asset;
   direction: Direction | null;
   onClose: () => void;
   embedded?: boolean;
+  onInputFocus?: (offset: number) => void;
+  onInputBlur?: () => void;
 }) {
   const { wallet, trade } = useWorkspace();
   const { snapshot, ready } = useDemoMarket();
@@ -38,6 +44,7 @@ export function OrderBottomSheet({
   const [filled, setFilled] = useState<Position | null>(null);
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
+  const fieldOffsets = useRef({ quantity: 0, sl: 0, tp: 0 });
   const q = Number(quantity);
   const value = usdNotional(asset, q);
   const unitValue = usdNotional(asset, 1);
@@ -104,14 +111,14 @@ export function OrderBottomSheet({
         </>
       ) : (
         <>
-          <Badge>VIRTUAL ORDER · NO REAL MONEY</Badge>
+          {!embedded && <><Badge>VIRTUAL ORDER · NO REAL MONEY</Badge>
           <Row>
             <Label muted>Current simulated price</Label>
             <Label size={24} bold>
               {price(asset)} {asset.symbol.split('/')[1]}
             </Label>
           </Row>
-          <Label muted size={11}>SIMULATED · {new Date(snapshot.asOf).toISOString().slice(11, 19)} UTC</Label>
+          <Label muted size={11}>SIMULATED · {new Date(snapshot.asOf).toISOString().slice(11, 19)} UTC</Label></>}
           {review ? (
             <GlassCard>
               <Label bold>Review your order</Label>
@@ -129,14 +136,16 @@ export function OrderBottomSheet({
             </GlassCard>
           ) : (
             <>
-              <AppInput
+              <View onLayout={event => { fieldOffsets.current.quantity = event.nativeEvent.layout.y; }}><AppInput
                 label="Quantity (units)"
                 keyboardType="decimal-pad"
                 value={quantity}
+                onFocus={() => onInputFocus?.(fieldOffsets.current.quantity)}
+                onBlur={onInputBlur}
                 onChangeText={setQuantity}
                 placeholder={asset.price > 100 ? "0.01" : "100"}
-              />
-              <Row>
+              /></View>
+              <Row style={{ flexWrap: 'wrap', gap: 8 }}>
                 <AppButton
                   compact
                   variant="secondary"
@@ -164,41 +173,46 @@ export function OrderBottomSheet({
                   }
                 />
               </Row>
-              <AppInput
+              <View onLayout={event => { fieldOffsets.current.sl = event.nativeEvent.layout.y; }}><AppInput
                 label="Stop loss (optional)"
                 keyboardType="decimal-pad"
                 value={sl}
+                onFocus={() => onInputFocus?.(fieldOffsets.current.sl)}
+                onBlur={onInputBlur}
                 onChangeText={setSl}
                 placeholder="Price level"
-              />
-              <AppInput
+              /></View>
+              <View onLayout={event => { fieldOffsets.current.tp = event.nativeEvent.layout.y; }}><AppInput
                 label="Take profit (optional)"
                 keyboardType="decimal-pad"
                 value={tp}
+                onFocus={() => onInputFocus?.(fieldOffsets.current.tp)}
+                onBlur={onInputBlur}
                 onChangeText={setTp}
                 placeholder="Price level"
-              />
+              /></View>
             </>
           )}
           <GlassCard>
-            <Row>
+            <Row style={{ flexWrap: 'wrap', gap: 8 }}>
               <Label muted>Available virtual funds</Label>
               <Label bold>{money(wallet.cash)}</Label>
             </Row>
-            <Row>
+            <Row style={{ flexWrap: 'wrap', gap: 8 }}>
               <Label muted>Order collateral · 1:1</Label>
               <Label>{money(Number.isFinite(value) ? value : 0)}</Label>
             </Row>
-            <Row>
+            <Row style={{ flexWrap: 'wrap', gap: 8 }}>
               <Label muted>Estimated fee · 0.02%</Label>
               <Label>{money(Number.isFinite(fee) ? fee : 0)}</Label>
             </Row>
-            <Label muted size={11}>
+            {!embedded && <Label muted size={11}>
               Long and short positions both reserve full collateral. Closing
               also incurs a 0.02% fee. No leverage or spread in this model.
-            </Label>
+            </Label>}
           </GlassCard>
           {!!error && <ErrorState message={error} />}
+          <RiskRing risk={estimateOrderRisk(asset, direction ?? 'buy', q, sl.trim() ? Number(sl) : undefined, wallet.cash)} />
           <AppButton
             label={review ? "Confirm virtual order" : "Review order"}
             variant={direction === "sell" ? "danger" : "primary"}

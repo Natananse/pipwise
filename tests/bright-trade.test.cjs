@@ -38,7 +38,8 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
   const tokens = load('src/lib/tradeTheme.ts');
   const { createDemoMarket } = load('src/lib/demoMarket.ts', { './market': market, './marketTypes': marketTypes });
   const feed = createDemoMarket({ now: () => Date.UTC(2026, 10, 5, 12), seed: 71 });
-  const instances = new Map(), calls = [], animations = [];
+  const instances = new Map(), calls = [], animations = [], backListeners = new Set(), chromeCalls = [];
+  let probeIdentity = 0, focused = true;
   let current, tree, pending, visited, dirty, paused = false, haptics = 0, demoSubscriptions = 0;
   const workspace = { loaded, wallet: { cash: 10000, positions: [], history: [] }, favorites: [...favorites], storageError,
     toggle(key, value) {
@@ -64,7 +65,7 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     },
     useEffect(callback, deps) {
       const record = current, index = record.cursor++, before = record.slots[index];
-      if (!before || deps.some((dep, i) => dep !== before.deps[i])) pending.push(() => {
+      if (!before?.deps || !deps || deps.some((dep, i) => dep !== before.deps[i])) pending.push(() => {
         before?.cleanup?.(); record.slots[index] = { deps, cleanup: callback() };
       });
     },
@@ -76,7 +77,9 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     interpolate() { return 0; }
   }
   const native = {
-    ...Object.fromEntries(['Pressable', 'ScrollView', 'Text', 'View'].map(name => [name, name])),
+    ...Object.fromEntries(['Pressable', 'ScrollView', 'Text', 'View', 'KeyboardAvoidingView'].map(name => [name, name])),
+    BackHandler: { addEventListener(_name, callback) { backListeners.add(callback); return { remove: () => backListeners.delete(callback) }; } },
+    Keyboard: { dismiss() {} },
     Platform: { OS: 'android' }, StyleSheet: { create: value => value }, useWindowDimensions: () => ({ width, height }),
     Animated: {
       View: 'Animated.View', Text: 'Animated.Text', Value: AnimatedValue,
@@ -102,18 +105,24 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     push(route) { calls.push({ action: 'push', route }); },
     setParams(next) { params = { ...params, ...next }; },
   };
+  const chartProbe = props => { const [identity] = react.useState(() => ++probeIdentity); return react.createElement('TradingChart', { ...props, identity }); };
+  const orderProbe = props => { const [identity] = react.useState(() => ++probeIdentity); return react.createElement('OrderBottomSheet', { ...props, identity }); };
   const { default: Trade } = load('src/app/(tabs)/practice.tsx', {
-    react, 'react-native': native, 'expo-router': { router, useLocalSearchParams: () => params },
+    react, 'react-native': native, 'expo-router': { router, useLocalSearchParams: () => params, useIsFocused: () => focused },
     'react-native-safe-area-context': { useSafeAreaInsets: () => insets },
     '../../components/MarketBadge': { MarketBadge: 'MarketBadge' },
     '../../components/LiveMarkets': { LiveMarkets: 'LiveMarkets' },
-    '../../components/OrderBottomSheet': { OrderBottomSheet: 'OrderBottomSheet' },
-    '../../components/TradingChart': { TradingChart: 'TradingChart' },
+    '../../components/OrderBottomSheet': { OrderBottomSheet: orderProbe },
+    '../../components/TradingChart': { TradingChart: chartProbe },
     '../../components/design': design, '../../lib/haptics': { lightHaptic() { haptics++; } },
     '../../lib/market': market, '../../lib/marketTypes': marketTypes,
     '../../lib/marketVisuals': { marketVisual: asset => ({ label: asset.name }) },
     '../../lib/navigation': navigation, '../../lib/simulator': { summary: () => ({ equity: workspace.wallet.cash }) },
     '../../lib/theme': theme, '../../lib/useReducedMotion': motion, '../../lib/workspace': { useWorkspace: () => workspace },
+    '../../lib/uiPreferences': { useUiPreferences: () => ({ immersive: true }) },
+    '../../lib/useTradingWindow': { useTradingWindow: () => ({ width, height, fontScale: 1, landscape: width > height, keyboardVisible: false, onInputFocus() {}, onInputBlur() {} }) },
+    '../../lib/tradingLayout': load('src/lib/tradingLayout.ts'),
+    '../../lib/tradeChrome': { tradeChrome: { configure: (...args) => chromeCalls.push(args), release() {}, reveal() {}, hide() {} } },
     '../../lib/demoMarketProvider': { useDemoMarket: () => {
       demoSubscriptions++;
       const snapshot = feed.getSnapshot();
@@ -146,7 +155,7 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
   }
   render();
   return {
-    calls, animations, workspace, tokens, navigation, feed, render,
+    calls, animations, workspace, tokens, navigation, feed, render, chromeCalls,
     get haptics() { return haptics; }, get demoSubscriptions() { return demoSubscriptions; },
     all: () => all(tree), text: () => text(tree), nodes: type => all(tree).filter(node => node.type === type),
     node: type => all(tree).find(node => node.type === type),
@@ -157,6 +166,15 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     input(label, value) { const field = all(tree).find(node => node.type === 'AppInput' && node.props.label === label); assert.ok(field); field.props.onChangeText(value); render(); },
     tick() { if (!paused) feed.tick(feed.getSnapshot().asOf + 1000); render(); },
     updateReady(next) { ready = next; render(); },
+    resize(nextWidth, nextHeight) {
+      width = nextWidth; height = nextHeight; render();
+      const body = all(tree).find(node => node.type === 'View' && typeof node.props.onLayout === 'function');
+      body.props.onLayout({ nativeEvent: { layout: { width: width - insets.left - insets.right, height: height - 100 } } }); render();
+    },
+    fullscreen(next) { all(tree).find(node => node.type === 'TradingChart').props.onFullScreenChange(next); render(); },
+    frame(next) { all(tree).find(node => node.type === 'TradingChart').props.external.onTimeframeChange(next); render(); },
+    back() { const handled = [...backListeners].some(callback => callback()); render(); return handled; },
+    focus(next) { focused = next; render(); },
   };
 }
 
@@ -245,17 +263,64 @@ test('selection from a filtered watchlist scrolls to its visible pill', () => {
   assert.ok(scrolls.at(-1).x < 160, 'The selected pill is second in this watchlist, rather than sixth in all markets');
 });
 
-test('safe inset and floating-dock clearance remain reserved for content and the order bar', () => {
+test('safe insets and dock clearance remain reserved with one scrollable inline order and keyboard owner', () => {
   const h = fixture();
   const header = h.nodes('View').find(node => style(node.props.style).paddingTop === 38);
   assert.ok(header, 'Header retains the top safe inset plus spacing');
-  const footer = h.nodes('View').find(node => style(node.props.style).position === 'absolute' && style(node.props.style).bottom === 0);
-  assert.ok(footer);
-  const footerStyle = style(footer.props.style);
-  assert.equal(footerStyle.left, 7); assert.equal(footerStyle.right, 9);
-  assert.ok(footerStyle.paddingBottom >= h.navigation.tabBarClearance(24));
   const content = h.nodes('ScrollView').find(node => !node.props.horizontal);
-  assert.ok(content.props.contentContainerStyle.paddingBottom >= footerStyle.paddingBottom + 56);
+  assert.ok(content.props.contentContainerStyle.paddingBottom >= h.navigation.tabBarClearance(24));
+  assert.equal(content.props.automaticallyAdjustKeyboardInsets, false);
+  assert.equal(h.nodes('KeyboardAvoidingView').length, 1);
+  assert.equal(h.node('OrderBottomSheet').props.embedded, true);
+  assert.equal(h.nodes('OrderBottomSheet').length, 1);
+});
+
+test('repeated rotation and fullscreen preserve one chart/order instance, selected asset and timeframe', () => {
+  const h = fixture();
+  h.press('BTC/USD, Bitcoin');
+  h.frame('15m');
+  h.press('Buy');
+  const chart = h.node('TradingChart');
+  const order = h.node('OrderBottomSheet');
+  const chartIdentity = chart.props.identity, orderIdentity = order.props.identity;
+  const chartKey = chart.props.key, orderKey = order.props.key;
+  const assertStable = () => {
+    assert.equal(h.nodes('TradingChart').length, 1);
+    assert.equal(h.nodes('OrderBottomSheet').length, 1);
+    assert.equal(h.node('TradingChart').props.identity, chartIdentity);
+    assert.equal(h.node('OrderBottomSheet').props.identity, orderIdentity);
+    assert.equal(h.node('TradingChart').props.key, chartKey);
+    assert.equal(h.node('OrderBottomSheet').props.key, orderKey);
+    assert.equal(h.node('TradingChart').props.asset.symbol, 'BTC/USD');
+    assert.equal(h.node('TradingChart').props.external.timeframe, '15m');
+    assert.equal(h.node('OrderBottomSheet').props.asset.symbol, 'BTC/USD');
+  };
+  for (let cycle = 0; cycle < 3; cycle++) {
+    h.resize(760, 390);
+    assertStable();
+    assert.equal(h.node('TradingChart').props.fill, true);
+    h.fullscreen(true); assertStable();
+    assert.equal(h.node('TradingChart').props.fullScreen, true);
+    h.resize(390, 844); assertStable();
+    if (cycle % 2) h.fullscreen(false); else assert.equal(h.back(), true);
+    assertStable();
+    assert.equal(h.node('TradingChart').props.fullScreen, false);
+    h.tick(); assertStable();
+  }
+  h.press('Sell');
+  assertStable();
+  assert.equal(h.node('OrderBottomSheet').props.direction, 'sell', 'Side changes must not discard the draft by changing its component key');
+});
+
+test('a blurred full-screen Trade releases Android Back to the newly focused route', () => {
+  const h = fixture();
+  h.fullscreen(true);
+  h.focus(false);
+  assert.equal(h.back(), false, 'A kept-alive Trade must not consume another screen’s Back event');
+  assert.equal(h.node('TradingChart').props.fullScreen, true, 'Leaving focus does not clear the retained chart state');
+  h.focus(true);
+  assert.equal(h.back(), true);
+  assert.equal(h.node('TradingChart').props.fullScreen, false);
 });
 
 test('readiness uses the actual skeleton and disables order entry until data is ready', () => {

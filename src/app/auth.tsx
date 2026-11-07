@@ -16,11 +16,13 @@ import { withStartupTimeout } from "../lib/startupTasks";
 import { normalizeProfileName, profileNameMaxLength } from "../lib/accountProfile";
 import { normalizeRegistrationDetails } from "../lib/registrationDetails";
 import { stageRegistrationDetails, syncPendingRegistrationDetails } from "../lib/accountDetails";
+import { responsiveLayout } from "../lib/responsiveLayout";
 
 export default function Auth() {
   const { startDemo, authConfigured } = useSession();
   const { t, language } = useWorkspace();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const compact = responsiveLayout({ width, height }).compactHeight;
   const rtl = languages.find(item => item.code === language)?.rtl ?? false;
   const textDirection = { textAlign: rtl ? "right" as const : "left" as const, writingDirection: rtl ? "rtl" as const : "ltr" as const };
   const rowDirection = rtl ? "row-reverse" as const : "row" as const;
@@ -138,7 +140,7 @@ export default function Auth() {
       <ScrollView
         automaticallyAdjustKeyboardInsets={false}
         keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-        contentContainerStyle={[styles.content, { paddingHorizontal: width < 360 ? 18 : 24 }]}
+        contentContainerStyle={[styles.content, { paddingHorizontal: width < 360 ? 18 : 24 }, compact && { paddingTop: 10, paddingBottom: 16, gap: 14 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -150,10 +152,10 @@ export default function Auth() {
         <View style={[styles.hero, { flexDirection: rowDirection }]}>
           <View style={{ flex: 1, gap: 9 }}>
             <Label size={10} bold color="#70766B" style={{ ...textDirection, letterSpacing: rtl ? 0 : 0.6 }}>{t("Your market. Your move.")}</Label>
-            <View accessibilityRole="header"><Label size={width < 360 ? 29 : 34} bold color={ink} style={{ ...textDirection, fontFamily: fonts.extraBold, letterSpacing: rtl ? 0 : -1.3, lineHeight: width < 360 ? 37 : 43 }}>{title}</Label></View>
+            <View accessibilityRole="header"><Label size={compact ? 26 : width < 360 ? 29 : 34} bold color={ink} style={{ ...textDirection, fontFamily: fonts.extraBold, letterSpacing: rtl ? 0 : -1.3, lineHeight: compact ? 34 : width < 360 ? 37 : 43 }}>{title}</Label></View>
             <Label size={12} color={muted} style={{ ...textDirection, lineHeight: 19 }}>{t("Build confidence, one practice trade at a time.")}</Label>
           </View>
-          <View style={styles.heroMark} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={reset ? "key-outline" : signUp ? "sparkles-outline" : "person-outline"} size={27} color={lime} /><View style={styles.heroDot} /></View>
+          <View style={[styles.heroMark, compact && { width: 46, height: 50, borderRadius: 16 }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" aria-hidden><Icon name={reset ? "key-outline" : signUp ? "sparkles-outline" : "person-outline"} size={27} color={lime} /><View style={styles.heroDot} /></View>
         </View>
 
         <View style={styles.formCard}>

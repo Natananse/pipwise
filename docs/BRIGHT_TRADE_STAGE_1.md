@@ -1,5 +1,7 @@
 # Bright Trade — Stage 1
 
+Historical stage: [TRADING_ROTATION.md](TRADING_ROTATION.md) supersedes this stage’s build marker, order layout, orientation and system-bar behavior. The current marker is **Trade UI: Rotate 1**.
+
 This stage makes the default Trade workspace visibly bright and simpler. It covers the warm off-white background (`#F7F5EF`), a compact balance and information bar, asset pills, a prominent quote and change, the light chart and its controls, and one Buy/Sell strip. Secondary controls and explanations remain reachable through information or the expanded market selector. The persistent practice qualification is **Practice money · Simulated prices**. Pro promotions and repeated banners do not belong on this Trade surface.
 
 The order panel/risk ring, immersive navigation, automatic dock hiding, fullscreen chart, and other-screen redesigns are later stages. System bars and normal tab navigation stay visible in Stage 1. Existing chart gestures, simulator execution/P&L, auth, billing, account deletion, public legal pages, launch animation, and onboarding behavior remain protected.

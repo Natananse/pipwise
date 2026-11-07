@@ -1,13 +1,17 @@
 import * as WebBrowser from 'expo-web-browser';
 import React, { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { fitChartHeight, responsiveLayout } from '../lib/responsiveLayout';
 import { getProviderChart } from '../lib/providerCharts';
 import { Icon, Label, Row } from './design';
 import TradingViewWidget from './TradingViewWidget';
 
 export function ProviderChart({ symbol, height = 420 }: { symbol: string; height?: number }) {
   const chart = getProviderChart(symbol);
-  const chartHeight = Math.max(300, Math.min(720, Number.isFinite(height) ? height : 420));
+  const layout = responsiveLayout({ ...useWindowDimensions(), insets: useSafeAreaInsets() });
+  const preferred = Math.min(720, Number.isFinite(height) ? height : 420);
+  const chartHeight = layout.compactHeight ? fitChartHeight(Math.max(140, layout.usableHeight - 120), preferred, 140) : Math.max(300, preferred);
   const [linkError, setLinkError] = useState('');
   if (!chart) return <Label size={12} color="#FF9DA5">This market has no configured provider chart.</Label>;
   const open = async () => {

@@ -5,21 +5,24 @@ import * as SystemUI from 'expo-system-ui';
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
 import { createSystemBarOverrides } from '../lib/systemBarOverrides';
+import { tradeChrome } from '../lib/tradeChrome';
 
 type IconStyle = 'light' | 'dark';
-type Props = { style: IconStyle; navigationStyle?: IconStyle; backgroundColor: string };
+type Props = { style: IconStyle; navigationStyle?: IconStyle; backgroundColor: string; immersive?: boolean };
 const startupCovers = createSystemBarOverrides();
 const noServerCover = () => false;
 
-function Bars({ style, navigationStyle = style, backgroundColor }: Props) {
+function Bars({ style, navigationStyle = style, backgroundColor, immersive = false }: Props) {
+  const chrome = useSyncExternalStore(tradeChrome.subscribe, tradeChrome.getSnapshot, tradeChrome.getServerSnapshot);
+  const hidden = immersive && chrome.active && chrome.enabled && chrome.hidden && !chrome.blocked;
   useEffect(() => {
     // Match exposed window pixels to the existing screen, without painting an
     // opaque system bar or changing the user's appearance preference.
     if (Platform.OS !== 'web') void SystemUI.setBackgroundColorAsync(backgroundColor).catch(() => undefined);
   }, [backgroundColor]);
   return <>
-    <StatusBar style={style} hidden={false} />
-    {Platform.OS === 'android' && <NavigationBar style={navigationStyle} hidden={false} />}
+    <StatusBar style={style} hidden={hidden} />
+    {Platform.OS === 'android' && <NavigationBar style={navigationStyle} hidden={hidden} />}
   </>;
 }
 

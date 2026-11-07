@@ -86,6 +86,7 @@ function referenceHarness({ width = 390, segments = ['(tabs)', 'analyse'], foote
     '../lib/simulator': { summary: () => ({ equity: 10000 }) },
     '../lib/demoMarketProvider': { useDemoMarket: () => ({ quotes: {} }) },
     '../lib/navigation': navigation,
+    '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
     '../lib/theme': { ThemeSurface: ({ children }) => children },
     '../lib/workspace': { useWorkspace: () => ({ loaded: true, storageError: '', wallet: {} }) },
     './design': { ErrorState: 'ErrorState', Icon: 'Icon', Label: 'Label', LoadingState: 'LoadingState', Row: 'Row' },

@@ -1,5 +1,7 @@
 # Chart gestures — stage 1
 
+The current [rotation stage](TRADING_ROTATION.md) adds portrait/landscape and full-screen acceptance while retaining these gesture checks. Use its current build marker and orientation instructions.
+
 This stage adds gestures to the in-app SVG chart: horizontal pinch zoom, horizontal pan, momentum, double-tap zoom, reset, and long-press candle inspection. It also keeps drawing inside the plot and distinguishes rising hollow candles from falling filled candles.
 
 Fullscreen and rotation, provider navigation restrictions, and the Trade layout redesign belong to later stages. The provider widget keeps its own interactions.

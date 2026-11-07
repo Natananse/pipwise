@@ -10,7 +10,7 @@ import {
 } from 'react-native-gesture-handler';
 import { cancelAnimation, ReduceMotion, useAnimatedReaction, useSharedValue, withDecay, type SharedValue } from 'react-native-reanimated';
 import { scheduleOnUI } from 'react-native-worklets';
-import { clampViewport, panViewport, zoomViewport, type ChartViewport } from '../lib/chartViewport';
+import { clampViewport, panViewport, reprojectInspection, zoomViewport, type ChartViewport } from '../lib/chartViewport';
 import type { Candle } from '../lib/market';
 
 export type ChartCrosshair = { active: boolean; x: number; y: number };
@@ -20,7 +20,9 @@ type Options = {
   crosshair: SharedValue<ChartCrosshair>;
   interacting: SharedValue<boolean>;
   plotWidth: number;
+  plotHeight?: number;
   left?: number;
+  top?: number;
   enabled: boolean;
   reducedMotion: boolean;
 };
@@ -32,7 +34,7 @@ function ratioAt(x: number, left: number, width: number) {
 }
 
 /** The current GH3 hooks keep viewport updates and deceleration on the UI thread. */
-export function useChartGestures({ viewport, candles, crosshair, interacting, plotWidth, left = 8, enabled, reducedMotion }: Options) {
+export function useChartGestures({ viewport, candles, crosshair, interacting, plotWidth, plotHeight = 0, left = 8, top = 0, enabled, reducedMotion }: Options) {
   const focused = useIsFocused();
   const validLayout = Number.isFinite(plotWidth) && plotWidth > 0 && Number.isFinite(left);
   const gestureEnabled = useSharedValue(enabled && focused && validLayout);
@@ -49,11 +51,12 @@ export function useChartGestures({ viewport, candles, crosshair, interacting, pl
   const momentumStart = useSharedValue(0);
   const momentumCount = useSharedValue(0);
   const momentumHistory = useSharedValue({ length: 0, first: 0 });
+  const plotRect = useSharedValue({ left, top, width: plotWidth, height: plotHeight });
 
   const syncInteracting = useCallback(() => {
     'worklet';
-    interacting.set(panning.get() || pinching.get() || inspecting.get() || momentum.get());
-  }, [inspecting, interacting, momentum, panning, pinching]);
+    interacting.set(panning.get() || pinching.get() || inspecting.get() || momentum.get() || crosshair.get().active);
+  }, [crosshair, inspecting, interacting, momentum, panning, pinching]);
 
   const stopMomentum = useCallback(() => {
     'worklet';
@@ -64,19 +67,19 @@ export function useChartGestures({ viewport, candles, crosshair, interacting, pl
     syncInteracting();
   }, [momentum, momentumEpoch, momentumStart, syncInteracting]);
 
-  const cancelOnUI = useCallback(() => {
+  const cancelOnUI = useCallback((preserveInspection = false) => {
     'worklet';
     stopMomentum();
     panning.set(false);
     pinching.set(false);
     inspecting.set(false);
     panNeedsRebase.set(true);
-    crosshair.set({ ...crosshair.get(), active: false });
-    interacting.set(false);
+    if (!preserveInspection) crosshair.set({ ...crosshair.get(), active: false });
+    interacting.set(preserveInspection && crosshair.get().active);
   }, [crosshair, inspecting, interacting, panNeedsRebase, panning, pinching, stopMomentum]);
 
-  const cancelInteractions = useCallback(() => {
-    scheduleOnUI(cancelOnUI);
+  const cancelInteractions = useCallback((preserveInspection = false) => {
+    scheduleOnUI(cancelOnUI, preserveInspection);
   }, [cancelOnUI]);
 
   useEffect(() => {
@@ -92,7 +95,21 @@ export function useChartGestures({ viewport, candles, crosshair, interacting, pl
       gestureEnabled.set(false);
       cancelInteractions();
     };
-  }, [cancelInteractions, enabled, focused, gestureEnabled, left, plotWidth, validLayout]);
+  }, [cancelInteractions, enabled, focused, gestureEnabled, validLayout]);
+
+  useEffect(() => {
+    scheduleOnUI(() => {
+      'worklet';
+      const previous = plotRect.get();
+      const next = { left, top, width: plotWidth, height: plotHeight };
+      if (previous.left === next.left && previous.top === next.top && previous.width === next.width && previous.height === next.height) return;
+      const inspection = crosshair.get();
+      cancelOnUI(true);
+      crosshair.set(reprojectInspection(inspection, previous, next));
+      plotRect.set(next);
+      syncInteracting();
+    });
+  }, [cancelOnUI, crosshair, left, plotHeight, plotRect, plotWidth, syncInteracting, top]);
 
   useEffect(() => {
     if (reducedMotion) scheduleOnUI(stopMomentum);

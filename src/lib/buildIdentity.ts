@@ -1,4 +1,4 @@
-export const TRADE_UI_MARKER = 'Trade UI: Bright 1';
+export const TRADE_UI_MARKER = 'Trade UI: Rotate 1';
 
 type BuildIdentityInput = {
   platform: string;

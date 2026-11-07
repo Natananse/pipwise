@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { AppButton, AppInput, ConfirmationDialog, Label, Sheet } from '../components/design';
 import { BuildIdentity } from '../components/BuildIdentity';
 import { LanguageSelector } from '../components/LanguageSelector';
@@ -10,10 +10,14 @@ import { useSession } from '../lib/session';
 import { useWorkspace } from '../lib/workspace';
 import { AccountDeletionError, requestAccountDeletion } from '../lib/accountDeletion';
 import { googleAuthEnabled, signIn, signInWithGoogle } from '../lib/neonAuth';
+import { useUiPreferences } from '../lib/uiPreferences';
+import { retryOrientation, useOrientationStatus } from '../components/OrientationCoordinator';
 
 export default function Settings() {
   const { language, update, preferences } = useWorkspace();
   const { signOut, resetOnboarding, session, demo, finishAccountDeletion } = useSession();
+  const display = useUiPreferences();
+  const orientation = useOrientationStatus();
   const [dialog, setDialog] = useState<'logout' | 'delete' | null>(null);
   const [privacy, setPrivacy] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +86,19 @@ export default function Settings() {
     <AppButton label="Back to profile" icon="arrow-back" variant="ghost" onPress={() => router.replace('/profile')} />
     <Label bold size={28} color={c.ink}>Settings</Label>
     <ReferenceCard><BuildIdentity /></ReferenceCard>
+    <ReferenceCard>
+      <Label bold size={18}>Display</Label>
+      <Label bold>Screen rotation</Label>
+      <View accessibilityRole="radiogroup" accessibilityLabel="Screen rotation" style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap' }}>
+        {(['auto', 'portrait'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={value === 'auto' ? 'Auto-rotate' : 'Portrait only'} accessibilityState={{ checked: display.rotation === value, disabled: !display.loaded || display.saving }} disabled={!display.loaded || display.saving} onPress={() => { void display.setRotation(value).catch(() => undefined); }} style={({ pressed }) => ({ minHeight: 48, minWidth: 128, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: display.rotation === value ? c.blue : c.line, backgroundColor: display.rotation === value ? '#E7F0E9' : '#FFFFFF', opacity: pressed ? 0.65 : 1 })}><Label bold>{display.rotation === value ? '✓ ' : ''}{value === 'auto' ? 'Auto-rotate' : 'Portrait only'}</Label></Pressable>)}
+      </View>
+      <Label muted size={12}>Launch and language setup stay in portrait. After setup, Auto-rotate follows the device’s rotation policy where supported.</Label>
+      <Pressable accessibilityRole="switch" accessibilityLabel="Immersive mode" accessibilityState={{ checked: display.immersive, disabled: !display.loaded || display.saving }} disabled={!display.loaded || display.saving} onPress={() => { void display.setImmersive(!display.immersive).catch(() => undefined); }} style={({ pressed }) => ({ minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, opacity: pressed ? 0.65 : 1 })}><View style={{ flex: 1, gap: 4 }}><Label bold>Immersive mode</Label><Label muted size={12}>Hide system bars and the floating dock on Trade when idle.</Label></View><Label bold>{display.immersive ? 'On' : 'Off'}</Label></Pressable>
+      {!display.loaded && !display.error && <Label muted size={12}>Loading display preferences…</Label>}
+      {display.saving && <Label muted size={12}>Saving display preferences…</Label>}
+      {!!display.error && <View accessibilityRole="alert"><Label color={c.red}>{display.error}</Label><AppButton label="Retry display preferences" variant="secondary" onPress={() => { void display.retry().catch(() => undefined); }} /></View>}
+      {!!orientation.error && <View accessibilityRole="alert"><Label color={c.red}>{orientation.error}</Label><AppButton label="Retry screen rotation" variant="secondary" onPress={retryOrientation} /></View>}
+    </ReferenceCard>
     <ReferenceCard><AppButton label="Replay onboarding" icon="refresh-outline" onPress={() => { void review(false); }} disabled={busy} /><Label muted size={11}>See the 10-language selection and three setup questions again. Your virtual funds and lesson progress are kept.</Label></ReferenceCard>
     <ReferenceCard><Label bold size={18}>Your account</Label><Label muted size={13}>{demo ? 'Local practice profile' : session?.user.email || 'Practice explorer'}</Label><Label muted size={11}>Your goal: {preferences.goal || 'Explore financial markets'}</Label></ReferenceCard>
     <ReferenceCard><Label bold size={18}>Language</Label><LanguageSelector light value={language} onSelect={value => update({ language: value })} /><Label muted size={11}>10 languages for onboarding and core navigation. Lesson content is currently in English.</Label></ReferenceCard>

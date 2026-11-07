@@ -1,6 +1,6 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useRef, useState } from 'react';
-import { Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { router, useIsFocused, useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MarketBadge } from '../../components/MarketBadge';
 import { LiveMarkets } from '../../components/LiveMarkets';
@@ -9,7 +9,7 @@ import { TradingChart } from '../../components/TradingChart';
 import {
   AppButton, AppInput, ErrorState, Icon, Label, Row, Sheet,
   TradeSurface, TradeTopBar, TradeAssetTile, TradeSparkline, TradeHeroQuote,
-  TradeChartCard, TradeFooter, TradeActionButton, TradeSkeleton,
+  TradeChartCard, TradeActionButton, TradeSkeleton,
 } from '../../components/design';
 import { lightHaptic } from '../../lib/haptics';
 import { useDemoMarket } from '../../lib/demoMarketProvider';
@@ -21,6 +21,10 @@ import { Direction, summary } from '../../lib/simulator';
 import { ThemeSurface } from '../../lib/theme';
 import { useReducedMotion } from '../../lib/useReducedMotion';
 import { useWorkspace } from '../../lib/workspace';
+import { useUiPreferences } from '../../lib/uiPreferences';
+import { useTradingWindow } from '../../lib/useTradingWindow';
+import { tradingLayout } from '../../lib/tradingLayout';
+import { tradeChrome } from '../../lib/tradeChrome';
 
 const displayOrder = ['EUR/USD', 'BTC/USD', 'USD/JPY', 'WTI/USD', 'GBP/USD', 'XAU/USD', 'SPX/USD'];
 const markets = displayOrder.map(symbol => assets.find(asset => asset.symbol === symbol)!);
@@ -42,7 +46,20 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [marketInfo, setMarketInfo] = useState(false);
   const [search, setSearch] = useState('');
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale, landscape, keyboardVisible, onInputFocus, onInputBlur } = useTradingWindow();
+  const focused = useIsFocused();
+  const { immersive } = useUiPreferences();
+  const [fullScreen, setFullScreen] = useState(false);
+  const [bodySize, setBodySize] = useState({ width, height: Math.max(120, height - 100) });
+  const [panelHeight, setPanelHeight] = useState(500);
+  const mainScroll = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const orderScroll = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const orderPaneTop = useRef(0);
+  const orderFormTop = useRef(0);
+  const orderContentTop = useRef(0);
+  const focusedField = useRef(0);
+  const scrollOffset = useRef(0);
+  const panelScrollOffset = useRef(0);
   const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const marketRail = useRef<React.ElementRef<typeof ScrollView>>(null);
@@ -50,7 +67,26 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   const series = market.getSeries(selectedSymbol, timeframe);
   const levels = market.getLevels(selectedSymbol, timeframe);
   const wide = width > navigationLayout.wideBreakpoint;
-  const bottomSpace = wide ? insets.bottom + 12 : tabBarClearance(insets.bottom) + 8;
+  const bottomSpace = fullScreen ? insets.bottom : keyboardVisible ? 8 : landscape ? insets.bottom + 68 : wide ? insets.bottom + 12 : tabBarClearance(insets.bottom) + 8;
+  const paneHeight = Math.max(80, bodySize.height - bottomSpace);
+  const layout = tradingLayout({ width: fullScreen ? bodySize.width : Math.min(1600, bodySize.width), height: paneHeight, insets: { top: 0, bottom: 0, left: 0, right: 0 }, landscape, fontScale, fullScreen });
+  const scrollToField = () => {
+    const fieldTop = orderContentTop.current + orderFormTop.current + focusedField.current;
+    if (landscape) orderScroll.current?.scrollTo({ y: Math.max(0, fieldTop - 12), animated: false });
+    else mainScroll.current?.scrollTo({ y: Math.max(0, orderPaneTop.current + fieldTop - 12), animated: false });
+  };
+  const scrollToFieldRef = useRef(scrollToField);
+  useEffect(() => { scrollToFieldRef.current = scrollToField; });
+  useEffect(() => {
+    tradeChrome.configure(focused, immersive, fullScreen, detailsOpen || marketInfo || keyboardVisible);
+  }, [focused, immersive, fullScreen, detailsOpen, marketInfo, keyboardVisible]);
+  useEffect(() => () => tradeChrome.release(), []);
+  useEffect(() => { if (keyboardVisible) scrollToFieldRef.current(); }, [keyboardVisible, bodySize.height, landscape]);
+  useEffect(() => {
+    if (!focused || !fullScreen || Platform.OS === 'web') return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => { setFullScreen(false); return true; });
+    return () => back.remove();
+  }, [focused, fullScreen]);
   const watchlist = markets.filter(item => favorites.includes(item.symbol));
   const visibleMarkets = marketList === 'watchlist' ? watchlist : markets;
   const formatQuote = (item: Asset) => `${item.symbol === 'USD/JPY' ? '¥' : '$'}${item.price.toLocaleString('en-US', { minimumFractionDigits: item.precision, maximumFractionDigits: item.precision })}`;
@@ -66,11 +102,8 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   };
   const openSelector = () => { setDetailsOpen(false); setMarketInfo(true); };
 
-  return <TradeSurface style={{ paddingLeft: insets.left, paddingRight: insets.right }}>
-    <TradeTopBar topInset={insets.top} equity={loaded && ready ? money(summary(wallet, quotes).equity) : '—'} onInfo={() => setDetailsOpen(true)} />
-    {!loaded || !ready ? <TradeSkeleton /> : <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ width: '100%', maxWidth: 1160, alignSelf: 'center', paddingTop: 8, paddingBottom: bottomSpace + 96, gap: 16 }}>
-      {storageError ? <View style={{ paddingHorizontal: 24 }}><ErrorState message={storageError} /></View> : null}
-      {demoStorageError ? <View style={{ paddingHorizontal: 24 }}><ErrorState message={demoStorageError} /></View> : null}
+  const marketHeader = <>
+      {landscape && <TradeTopBar topInset={0} equity={money(summary(wallet, quotes).equity)} onInfo={() => setDetailsOpen(true)} />}
       {visibleMarkets.length ? <ScrollView ref={marketRail} horizontal snapToInterval={160} decelerationRate="fast" showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 24, gap: 8 }}>
         {visibleMarkets.map(item => {
           const current = market.getAsset(item.symbol);
@@ -83,16 +116,46 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
           </TradeAssetTile>;
         })}
       </ScrollView> : <View style={{ paddingHorizontal: 24, gap: 8 }}><Label bold>Your watchlist is empty</Label><Label muted size={12}>Save a market in Markets and watchlist.</Label><AppButton label="Browse all markets" variant="secondary" onPress={() => changeMarketList('all')} /></View>}
-      <TradeHeroQuote asset={asset} quote={formatQuote(asset)} paused={paused} />
-      <TradeChartCard>
-        <TradingChart key={`${asset.symbol}-${timeframe}`} asset={asset} presentation="trade" referenceUI plotHeight={wide ? 380 : Math.max(230, Math.min(320, height - 540))} external={{ candles: series.candles, timeframe, loading: false, error: '', sample: true, moving: true, onRetry: () => {}, onTimeframeChange: next => { if (marketTimeframes.includes(next as MarketTimeframe)) setTimeframe(next as MarketTimeframe); } }} keyLevels={levels} />
-      </TradeChartCard>
-      <View style={{ paddingHorizontal: 24 }}><Label muted size={11}>Practice money · Simulated prices</Label></View>
-    </ScrollView>}
-    {loaded && ready && <TradeFooter bottomSpace={bottomSpace} leftInset={insets.left} rightInset={insets.right}>
-      <TradeActionButton direction="sell" onPress={() => { lightHaptic(); setDirection('sell'); }} />
-      <TradeActionButton direction="buy" onPress={() => { lightHaptic(); setDirection('buy'); }} />
-    </TradeFooter>}
+      <TradeHeroQuote asset={asset} quote={formatQuote(asset)} paused={paused} compact={landscape} />
+      {landscape && <View style={{ paddingHorizontal: 24 }}><Label muted size={11}>Practice money · Simulated prices</Label></View>}
+  </>;
+
+  return <TradeSurface onTouchStart={() => tradeChrome.reveal()} style={{ paddingLeft: insets.left, paddingRight: insets.right, paddingTop: fullScreen || landscape ? insets.top : 0 }}>
+    <View style={{ display: fullScreen || landscape ? 'none' : 'flex' }}>{!fullScreen && !landscape && <TradeTopBar topInset={insets.top} equity={loaded && ready ? money(summary(wallet, quotes).equity) : '—'} onInfo={() => setDetailsOpen(true)} />}</View>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={{ flex: 1 }} onLayout={event => { const next = event.nativeEvent.layout; setBodySize(previous => previous.width === next.width && previous.height === next.height ? previous : { width: next.width, height: next.height }); }}>
+        {!loaded || !ready ? <TradeSkeleton /> : <ScrollView ref={mainScroll} scrollEnabled={!landscape && !fullScreen} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={event => {
+          const next = event.nativeEvent.contentOffset.y;
+          if (next > scrollOffset.current + 6) tradeChrome.hide(); else if (next < scrollOffset.current - 6) tradeChrome.reveal();
+          scrollOffset.current = next;
+        }} contentContainerStyle={{ width: '100%', maxWidth: fullScreen ? undefined : 1600, alignSelf: 'center', flexDirection: landscape || fullScreen ? 'row' : 'column', height: landscape || fullScreen ? paneHeight : undefined, paddingTop: fullScreen ? 0 : 8, paddingBottom: landscape || fullScreen ? 0 : bottomSpace + 16 }}>
+          <View style={{ width: fullScreen ? '100%' : landscape ? layout.chartWidth : '100%', height: landscape || fullScreen ? '100%' : undefined }}>
+            <View style={{ display: landscape || fullScreen ? 'none' : 'flex', gap: 16 }}>{!landscape && !fullScreen && marketHeader}</View>
+            <TradeChartCard style={landscape || fullScreen ? { flex: 1, marginHorizontal: fullScreen ? 0 : 8, padding: fullScreen ? 8 : 12, borderRadius: fullScreen ? 0 : 28 } : undefined}>
+              <TradingChart key={`${asset.symbol}-${timeframe}`} asset={asset} presentation="trade" referenceUI fullScreen={fullScreen} onFullScreenChange={next => { if (next) Keyboard.dismiss(); tradeChrome.reveal(); setFullScreen(next); }} fill={landscape || fullScreen} plotHeight={wide ? 380 : Math.max(230, Math.min(320, height - 540))} external={{ candles: series.candles, timeframe, loading: false, error: '', sample: true, moving: true, onRetry: () => {}, onTimeframeChange: next => { if (marketTimeframes.includes(next as MarketTimeframe)) setTimeframe(next as MarketTimeframe); } }} keyLevels={levels} />
+            </TradeChartCard>
+            <View style={{ paddingHorizontal: 24, paddingVertical: 8, display: fullScreen || landscape ? 'none' : 'flex' }}>{!fullScreen && !landscape && <Label muted size={11}>Practice money · Simulated prices</Label>}</View>
+          </View>
+          <View onLayout={event => { orderPaneTop.current = event.nativeEvent.layout.y; }} style={{ display: fullScreen ? 'none' : 'flex', width: landscape ? layout.panelWidth : '100%', height: landscape ? '100%' : panelHeight }}>
+            <ScrollView ref={orderScroll} nestedScrollEnabled scrollEnabled={landscape} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={false} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} showsVerticalScrollIndicator={landscape} scrollEventThrottle={32} onScroll={event => {
+              const next = event.nativeEvent.contentOffset.y;
+              if (next > panelScrollOffset.current + 6) tradeChrome.hide(); else if (next < panelScrollOffset.current - 6) tradeChrome.reveal();
+              panelScrollOffset.current = next;
+            }} onContentSizeChange={(_width, next) => { if (next > 0) setPanelHeight(previous => Math.abs(previous - next) > 1 ? next : previous); }} contentContainerStyle={{ gap: 16, paddingBottom: 24 }}>
+              <View style={{ display: landscape ? 'flex' : 'none' }}>{landscape && marketHeader}</View>
+              <View onLayout={event => { orderContentTop.current = event.nativeEvent.layout.y; }} style={{ paddingHorizontal: landscape ? 12 : 24, gap: 16 }}>
+                {storageError ? <ErrorState message={storageError} /> : null}
+                {demoStorageError ? <ErrorState message={demoStorageError} /> : null}
+                <Row style={{ gap: 8 }}><TradeActionButton direction="sell" onPress={() => { lightHaptic(); setDirection('sell'); }} /><TradeActionButton direction="buy" onPress={() => { lightHaptic(); setDirection('buy'); }} /></Row>
+                <View onLayout={event => { orderFormTop.current = event.nativeEvent.layout.y; }}>
+                  <OrderBottomSheet key={asset.symbol} embedded asset={asset} direction={direction ?? 'buy'} onClose={() => setDirection(null)} onInputFocus={offset => { focusedField.current = offset; onInputFocus(); scrollToFieldRef.current(); }} onInputBlur={onInputBlur} />
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </ScrollView>}
+      </View>
+    </KeyboardAvoidingView>
     <Sheet visible={detailsOpen} title="Practice details" onClose={() => setDetailsOpen(false)}>
       <Label bold size={18}>Moving simulated prices</Label>
       <Label muted size={13}>SIMULATED · No live market feed. Seven simulated markets update once a second. Quotes, candles and virtual orders use the same price source. The demo pauses in the background and when you leave demo screens.</Label>
@@ -115,6 +178,5 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
       </View>)}
       {!markets.some(item => (marketList !== 'watchlist' || favorites.includes(item.symbol)) && `${item.symbol} ${item.name}`.toLowerCase().includes(search.toLowerCase())) && <Label muted>No matching markets. Try another name or choose All markets.</Label>}
     </Sheet>
-    <OrderBottomSheet key={`${asset.symbol}-${direction}`} asset={asset} direction={direction} onClose={() => setDirection(null)} />
   </TradeSurface>;
 }

@@ -8,6 +8,8 @@ const react = {
   createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
   useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}],
   useRef: initial => ({ current: initial }),
+  useCallback: callback => callback,
+  useEffect() {},
 };
 const colors = { bg: '#0D1011', darkBg: '#0D1011', overlay: 'overlay', sheet: 'sheet', sheetBorder: 'sheetBorder' };
 const insets = { top: 32, left: 8, right: 12, bottom: 24 };
@@ -54,6 +56,7 @@ function design(platform, width = 390, segments = ['disclaimer']) {
     'react-native-safe-area-context': { SafeAreaProvider: 'SafeAreaProvider', SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => insets },
     '../lib/theme': { fonts: {}, ThemeSurface: 'ThemeSurface', useTheme: () => ({ colors }) },
     '../lib/navigation': load('src/lib/navigation.ts'),
+    '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
     '../lib/workspace': { useWorkspace: () => ({ storageError: '' }) },
     './AppLogo': { AppLogo: 'AppLogo' },
     './ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars', ModalSystemBars: 'ModalSystemBars' },
@@ -111,6 +114,7 @@ test('auth-flow forms use one native avoidance mechanism without automatic extra
       'react-native': native(platform),
       'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
       '../lib/theme': { fonts: {}, ThemeSurface: 'ThemeSurface' },
+      '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
       './AppLogo': { AppLogo: 'AppLogo' },
       './design': { Icon: 'Icon', Label: 'Label' },
       './ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars' },
@@ -136,6 +140,7 @@ test('floating dock hides for the native keyboard, returns with safe clearance a
   let cursor = 0;
   const hooks = {
     createElement: react.createElement,
+    useSyncExternalStore: (_subscribe, getSnapshot) => getSnapshot(),
     useState(initial) {
       const i = cursor++;
       if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial;
@@ -149,7 +154,7 @@ test('floating dock hides for the native keyboard, returns with safe clearance a
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     'react-native': {
       ...native('android'),
-      Animated: { Value: class { setValue() {} }, View: 'AnimatedView' },
+      Animated: { Value: class { setValue() {} interpolate() { return 0; } }, View: 'AnimatedView' },
       StyleSheet: { create: value => value },
       Keyboard: { isVisible: () => false, addListener(event, callback) { listeners.set(event, callback); return { remove() { removed.push(event); listeners.delete(event); } }; } },
     },
@@ -158,6 +163,7 @@ test('floating dock hides for the native keyboard, returns with safe clearance a
     '../lib/theme': { fonts: {} },
     '../lib/useReducedMotion': { useReducedMotion: () => true },
     './reference': { referenceColors: {} },
+    '../lib/tradeChrome': { tradeChrome: { subscribe: () => () => {}, getSnapshot: () => ({ active: false, fullScreen: false }), reveal() {} } },
   });
   const props = { state: { index: 0, routes: [{ name: 'practice', key: 'practice' }] }, descriptors: { practice: { options: { title: 'Trade' } } } };
   const render = () => { cursor = 0; return FloatingTabBar(props); };

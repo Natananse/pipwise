@@ -8,6 +8,7 @@ import { money } from '../lib/market';
 import { summary } from '../lib/simulator';
 import { useDemoMarket } from '../lib/demoMarketProvider';
 import { contentBottomPadding, floatingFooterBottom, navigationLayout } from '../lib/navigation';
+import { responsiveLayout } from '../lib/responsiveLayout';
 import { ThemeSurface } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
 import { ErrorState, Icon, Label, LoadingState, Row } from './design';
@@ -29,9 +30,10 @@ export function CoinMark({ size = 26 }: { size?: number }) {
 }
 export function ReferenceHeader() {
   const insets = useSafeAreaInsets();
+  const compact = responsiveLayout({ ...useWindowDimensions(), insets }).compactHeight;
   const { wallet } = useWorkspace();
   const { quotes } = useDemoMarket();
-  return <View style={{ paddingTop: insets.top + 14, paddingBottom: 16, paddingHorizontal: 16, overflow: 'hidden' }}>
+  return <View style={{ paddingTop: insets.top + (compact ? 6 : 14), paddingBottom: compact ? 6 : 16, paddingHorizontal: 16, overflow: 'hidden' }}>
     <ReferenceGradient />
     <Row style={{ maxWidth: 1120, width: '100%', alignSelf: 'center', gap: 10, flexWrap: 'wrap' }}>
       <Pressable accessibilityRole="button" accessibilityLabel="View virtual portfolio" onPress={() => router.push('/portfolio')} style={({ pressed }) => ({ minHeight: 42, borderRadius: 26, paddingHorizontal: 10, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#FFFFFF65', backgroundColor: '#FFFFFF16', opacity: pressed ? 0.65 : 1 })}><CoinMark /><Label size={15} bold color="white">{money(summary(wallet, quotes).equity).replace('$', '')}</Label></Pressable>
@@ -49,7 +51,8 @@ export function ReferenceScreen({ children, header, contentStyle, footer }: { ch
   return <ThemeSurface tone="light"><ReferenceScreenBody header={header} contentStyle={contentStyle} footer={footer}>{children}</ReferenceScreenBody></ThemeSurface>;
 }
 function ReferenceScreenBody({ children, header, contentStyle, footer }: { children: React.ReactNode; header?: React.ReactNode; contentStyle?: ViewStyle; footer?: React.ReactNode }) {
-  const insets = useSafeAreaInsets(); const wide = useWindowDimensions().width > navigationLayout.wideBreakpoint;
+  const insets = useSafeAreaInsets(); const dimensions = useWindowDimensions(); const wide = dimensions.width > navigationLayout.wideBreakpoint;
+  const compact = responsiveLayout({ ...dimensions, insets }).compactHeight;
   const tabRoute = useSegments()[0] === '(tabs)';
   const [footerHeight, setFooterHeight] = useState(90);
   const clearance = { bottomInset: insets.bottom, wide, tabRoute };
@@ -57,7 +60,7 @@ function ReferenceScreenBody({ children, header, contentStyle, footer }: { child
   return <View style={{ flex: 1, backgroundColor: referenceColors.bg, paddingLeft: insets.left, paddingRight: insets.right }}>
     <ScreenSystemBars style={header === undefined ? 'light' : 'dark'} navigationStyle="dark" backgroundColor={referenceColors.bg} />
     {header === undefined ? <ReferenceHeader /> : header}
-    {!loaded ? <LoadingState /> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 18, gap: 22, maxWidth: 1120, width: '100%', alignSelf: 'center', ...contentStyle, paddingBottom: contentBottomPadding({ ...clearance, contentGap: wide ? 32 : 20, footerHeight: footer ? footerHeight : 0 }) }}>{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView>}
-    {footer && <View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)} style={{ position: 'absolute', left: insets.left, right: insets.right, bottom: floatingFooterBottom(clearance), backgroundColor: referenceColors.bg, borderTopWidth: 1, borderColor: referenceColors.line }}><View style={{ width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 18, paddingVertical: 12 }}>{footer}</View></View>}
+    {!loaded ? <LoadingState /> : <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: compact ? 12 : 18, gap: compact ? 12 : 22, maxWidth: 1120, width: '100%', alignSelf: 'center', ...contentStyle, paddingBottom: contentBottomPadding({ ...clearance, contentGap: compact ? 12 : wide ? 32 : 20, footerHeight: footer ? footerHeight : 0 }) }}>{storageError ? <ErrorState message={storageError} /> : null}{children}</ScrollView>}
+    {footer && <View onLayout={event => setFooterHeight(event.nativeEvent.layout.height)} style={{ position: 'absolute', left: insets.left, right: insets.right, bottom: floatingFooterBottom(clearance), backgroundColor: referenceColors.bg, borderTopWidth: 1, borderColor: referenceColors.line }}><View style={{ width: '100%', maxWidth: 1120, alignSelf: 'center', paddingHorizontal: 18, paddingVertical: compact ? 8 : 12 }}>{footer}</View></View>}
   </View>;
 }

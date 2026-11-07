@@ -4,6 +4,7 @@ import { AppState, Pressable, ScrollView, StyleSheet, View, useWindowDimensions 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type Asset, assets } from '../lib/market';
 import { navigationLayout, tabBarClearance } from '../lib/navigation';
+import { fitChartHeight, responsiveLayout } from '../lib/responsiveLayout';
 import { getProviderChart } from '../lib/providerCharts';
 import { useWorkspace } from '../lib/workspace';
 import { MarketBadge } from './MarketBadge';
@@ -27,12 +28,13 @@ export function LiveMarkets({ embedded = false, initialSymbol = 'EUR/USD', onPra
   const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const layout = responsiveLayout({ width, height, insets });
   const wide = width > navigationLayout.wideBreakpoint;
   const watchlist = assets.filter(asset => favorites.includes(asset.symbol));
   const visible = filter === 'all' ? assets : watchlist;
   const asset = assets.find(item => item.symbol === symbol)!;
   const source = getProviderChart(symbol);
-  const chartHeight = hydrated ? wide ? 520 : Math.max(400, Math.min(520, height * 0.61)) : 420;
+  const chartHeight = layout.compactHeight ? fitChartHeight(Math.max(140, layout.usableHeight - 120), 360, 180) : hydrated ? wide ? 520 : Math.max(400, Math.min(520, height * 0.61)) : 420;
   const openPractice = () => onPractice ? onPractice(symbol) : router.push({ pathname: '/(tabs)/practice', params: { mode: 'sample', symbol } });
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export function LiveMarkets({ embedded = false, initialSymbol = 'EUR/USD', onPra
 
   return <View style={[s.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
     <ScreenSystemBars style="light" backgroundColor={c.bg} />
-    <View style={{ paddingTop: insets.top + 12, paddingHorizontal: 18, paddingBottom: 12 }}>
+    <View style={{ paddingTop: insets.top + (layout.compactHeight ? 6 : 12), paddingHorizontal: 18, paddingBottom: layout.compactHeight ? 6 : 12 }}>
       <Row style={s.header}>
         {!embedded && <IconButton label="Back to Trade" name="arrow-back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/practice')} />}
         <View style={{ flex: 1, gap: 2 }}><Label bold size={20} color={c.text}>{embedded ? 'pipwise' : 'Market charts'}</Label><Label size={10} color={c.muted}>{embedded ? 'YOUR MARKET WORKSPACE' : 'Provider market data'}</Label></View>

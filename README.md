@@ -54,11 +54,13 @@ Run `node --test tests/*.test.cjs` to verify preference persistence, startup rou
 
 ## Share a beta
 
+Portrait/landscape trading, full-screen chart and immersive navigation require a new native APK. Follow [TRADING_ROTATION.md](docs/TRADING_ROTATION.md), build with `pnpm beta:android`, and confirm **Trade UI: Rotate 1** plus the installed native version/build in Settings. Check the actual EAS `versionCode` before any Play upload. Welcome and onboarding remain portrait; Settings offers Auto / Portrait only.
+
 Stage 1 Android system-bar, safe-area and keyboard changes need a rebuilt APK. Follow the [edge-to-edge phone checklist](docs/ANDROID_EDGE_TO_EDGE_STAGE_1.md), build with `pnpm beta:android`, and test the native splash handoff on your phone before starting Stage 2's visual redesign.
 
 The chart gesture stage also requires a fresh APK. Follow the [chart gesture checks and build instructions](docs/CHART_GESTURE_STAGE_1.md) before accepting pinch, pan, inspection, and performance on a phone.
 
-The bright Trade stage has its own [build-identity and phone checklist](docs/BRIGHT_TRADE_STAGE_1.md). Build with `pnpm beta:android`, then confirm **Trade UI: Bright 1** and the installed native version/build in **Profile → Settings**. Compare the completed EAS artifact's actual Android version code before any Play upload; system bars remain visible in this stage.
+The earlier bright Trade stage is documented in [BRIGHT_TRADE_STAGE_1.md](docs/BRIGHT_TRADE_STAGE_1.md). The current rotation stage supersedes its marker and system-bar behavior; use the rotation guide above for acceptance.
 
 The current Android release implementation, build commands, public legal URLs, Google OAuth/signing details and remaining owner actions are in [GOOGLE_PLAY_RELEASE_AUDIT.md](docs/GOOGLE_PLAY_RELEASE_AUDIT.md). Paste-ready store content and the closed-test plan are in [GOOGLE_PLAY_RELEASE_CONTENT.md](docs/GOOGLE_PLAY_RELEASE_CONTENT.md). Activate the prepared feedback-retention workflow before relying on scheduled cleanup; see [RETENTION_SCHEDULER_SETUP.md](docs/RETENTION_SCHEDULER_SETUP.md).
 

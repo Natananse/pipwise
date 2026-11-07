@@ -9,6 +9,7 @@ import { AppButton, Chip, EmptyState, ErrorState, GlassCard, Icon, Label, Loadin
 import { portfolioAnalytics } from '../lib/analytics';
 import { assets, money, usdNotional } from '../lib/market';
 import { contentBottomPadding, navigationLayout } from '../lib/navigation';
+import { fitChartHeight, responsiveLayout } from '../lib/responsiveLayout';
 import { initialWallet, pnl, Position } from '../lib/simulator';
 import { fonts, ThemeSurface, useTheme } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
@@ -25,8 +26,9 @@ function AnalyticsDashboard() {
   const { wallet, loaded, storageError, close } = useWorkspace();
   const { quotes, ready: pricesReady } = useDemoMarket({ active: true });
   const { colors } = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const layout = responsiveLayout({ width, height, insets });
   const wide = width > navigationLayout.wideBreakpoint;
   const [section, setSection] = useState('Open positions');
   const [filter, setFilter] = useState('All trades');
@@ -65,7 +67,7 @@ function AnalyticsDashboard() {
         <GlassCard style={{ flex: wide ? 1.7 : undefined }}>
           <Row><View style={{ flex: 1 }}><Label bold size={20}>Equity curve</Label><Label muted size={11}>All-time closed results, net of trading fees</Label></View><Icon name="pulse-outline" color={colors.primary} /></Row>
           <Label bold size={28}>{money(stats.curve[stats.curve.length - 1])}</Label>
-          <EquityCurve values={stats.curve} />
+          <EquityCurve values={stats.curve} height={layout.compactHeight ? fitChartHeight(Math.max(80, layout.usableHeight - 180), 140, 100) : 190} />
           <Label muted size={11}>{wallet.history.length ? `Current equity also includes ${signedMoney(stats.unrealized)} open P&L and ${money(stats.openFees)} in open entry fees. The curve records balances when trades close.` : 'Your curve begins at $10,000. Close a practice trade to record your first result.'}</Label>
         </GlassCard>
         <GlassCard style={{ flex: wide ? 1 : undefined }}>

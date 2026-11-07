@@ -20,11 +20,15 @@ type ExternalChartData = {
 };
 type ChartLevel = { label: string; price: number; color: string };
 
-export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor, external, keyLevels = [], presentation = 'default' }: {
+export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor, external, keyLevels = [], presentation = 'default', fullScreen = false, onFullScreenChange, fill = false }: {
   asset: Asset; small?: boolean; plotHeight?: number; compactControls?: boolean; referenceUI?: boolean; terminal?: boolean; accentColor?: string;
   external?: ExternalChartData;
   keyLevels?: ChartLevel[];
   presentation?: 'default' | 'trade';
+  fullScreen?: boolean;
+  onFullScreenChange?: (next: boolean) => void;
+  /** Fit a reference chart to a definite-height parent without remounting it. */
+  fill?: boolean;
 }) {
   const { colors } = useTheme();
   const tradePresentation = presentation === 'trade';
@@ -57,6 +61,8 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const [controlsOpen, setControlsOpen] = useState(false);
   const [framesOpen, setFramesOpen] = useState(false);
   const [average, setAverage] = useState(false);
+  const [availableHeight, setAvailableHeight] = useState(0);
+  const [toolbarHeight, setToolbarHeight] = useState(44);
   const candles = external ? external.candles : demoCandles;
   const frame = external?.timeframe ?? demoFrame;
   const error = external?.error ?? demoError;
@@ -86,7 +92,9 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
     return () => { active = false; };
   }, [asset, frame, retry, externalMode]);
 
-  const h = Math.max(180, plotHeight ?? (small ? 180 : 300));
+  const fixedHeight = Math.max(180, plotHeight ?? (small ? 180 : 300));
+  const toolbarSpace = referenceUI ? toolbarHeight + 8 : 0;
+  const h = fill ? Math.max(80, (availableHeight || fixedHeight + toolbarSpace) - toolbarSpace) : fixedHeight;
   const axisWidth = Math.max(tradePresentation ? 80 : 72, asset.price.toFixed(asset.precision).length * 7 + 16);
   const plotW = Math.max(80, width - axisWidth);
   const controller = useChartController({ candles, identity: `${asset.symbol}:${frame}`, initialCount: referenceUI ? 80 : 36 });
@@ -94,7 +102,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const reducedMotion = useReducedMotion();
   const { gesture, cancelInteractions } = useChartGestures({
     viewport: controller.viewport, candles: controller.candles, crosshair: controller.crosshair,
-    interacting: controller.interacting, plotWidth: Math.max(1, plotW - 16), left: 8,
+    interacting: controller.interacting, plotWidth: Math.max(1, plotW - 16), plotHeight: Math.max(1, h - 48), left: 8, top: 16,
     enabled: focused && !loading && !error && candles.length > 0,
     reducedMotion: reducedMotion !== false,
   });
@@ -110,16 +118,17 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   ];
   const readout = !small && (!referenceUI || external) ? <ChartReadout prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} plotW={plotW} precision={asset.precision} frame={frame} axisColor={axisColor} up={tradePresentation ? tradeColors.up : colors.up} down={tradePresentation ? tradeColors.down : colors.down} muted={tradePresentation ? tradeColors.sub : colors.sub} inspectionOnly={tradePresentation} /> : null;
 
-  return <View style={{ gap: 8 }}>
-    {referenceUI && <Row style={{ justifyContent: chartTerminal ? 'space-between' : 'flex-end', gap: controlGap, flexWrap: 'wrap' }}>
+  return <View onLayout={fill ? event => setAvailableHeight(event.nativeEvent.layout.height) : undefined} style={{ gap: 8, flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined }}>
+    {referenceUI && <View onLayout={fill ? event => setToolbarHeight(event.nativeEvent.layout.height) : undefined}><Row style={{ justifyContent: chartTerminal ? 'space-between' : 'flex-end', gap: controlGap, flexWrap: 'wrap' }}>
       {chartTerminal && <Label bold size={9} color="#A0AAA2" style={{ letterSpacing: 1.3 }}>PRICE ACTION</Label>}
-      <Row style={{ gap: controlGap }}>
+      <Row style={{ gap: controlGap, flexWrap: onFullScreenChange ? 'wrap' : undefined, flexShrink: onFullScreenChange ? 1 : undefined, justifyContent: 'flex-end' }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Change chart timeframe" onPress={() => act(() => setFramesOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, paddingHorizontal: tradePresentation ? tradeSpace.sm : chartTerminal ? 11 : 14, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, flexDirection: 'row', gap: 8, alignItems: 'center', opacity: pressed ? 0.6 : 1 })}><Label bold size={12} color={controlColor}>{frame}</Label><Ionicons name="chevron-down" size={12} color={controlColor} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Switch to ${mode === 'Line' ? 'candlestick' : 'line'} chart`} onPress={() => act(() => setMode(value => value === 'Line' ? 'Candles' : 'Line'))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={mode === 'Line' ? 'stats-chart-outline' : 'pulse-outline'} size={21} color={controlColor} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Chart indicators and controls" onPress={() => act(() => setControlsOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="color-wand-outline" size={21} color={tradePresentation ? average ? tradeColors.up : controlColor : average ? chartTerminal ? lineColor : colors.primary : controlColor} /></Pressable>
         {!tradePresentation && <Pressable accessibilityRole="button" accessibilityLabel="Reset chart view" disabled={loading || !candles.length} accessibilityState={{ disabled: loading || !candles.length }} onPress={() => act(controller.reset)} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: 14, borderWidth: chartTerminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="refresh" size={19} color={controlColor} /></Pressable>}
+        {onFullScreenChange && <Pressable accessibilityRole="button" accessibilityLabel={fullScreen ? 'Exit full-screen chart' : 'Open full-screen chart'} accessibilityState={{ expanded: fullScreen }} onPress={() => { cancelInteractions(true); onFullScreenChange(!fullScreen); }} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={fullScreen ? 'contract-outline' : 'expand-outline'} size={20} color={controlColor} /></Pressable>}
       </Row>
-    </Row>}
+    </Row></View>}
     {!tradePresentation && readout}
     <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ height: h }}
       accessibilityLabel={`${asset.symbol} ${external?.moving ? 'moving simulated' : sample ? 'sample' : 'historical'} ${mode.toLowerCase()} chart. Pinch to zoom, drag sideways to pan, double tap to zoom, and hold to inspect. Chart tools include zoom, pan and reset buttons.`}>

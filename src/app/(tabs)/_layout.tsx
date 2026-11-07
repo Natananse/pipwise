@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { useWindowDimensions } from 'react-native';
 import { FloatingTabBar } from '../../components/FloatingTabBar';
 import { referenceColors as c } from '../../components/reference';
@@ -7,10 +7,13 @@ import { lightHaptic } from '../../lib/haptics';
 import { navigationLayout } from '../../lib/navigation';
 import { ThemeSurface } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
+import { tradeChrome } from '../../lib/tradeChrome';
 
 export const unstable_settings = { anchor: 'practice' };
 export default function TabsLayout() {
-  const { t } = useWorkspace(); const wide = useWindowDimensions().width > navigationLayout.wideBreakpoint;
+  const { t } = useWorkspace();
+  const chrome = useSyncExternalStore(tradeChrome.subscribe, tradeChrome.getSnapshot, tradeChrome.getServerSnapshot);
+  const wide = useWindowDimensions().width > navigationLayout.wideBreakpoint && !(chrome.active && chrome.fullScreen);
   return <ThemeSurface tone="light"><Tabs backBehavior="initialRoute" tabBar={props => <FloatingTabBar {...props} />} screenListeners={{ tabPress: () => lightHaptic() }} screenOptions={{ headerShown: false, tabBarPosition: wide ? 'left' : 'bottom', sceneStyle: { backgroundColor: c.bg, marginLeft: wide ? navigationLayout.railWidth : 0 }, tabBarStyle: { width: wide ? navigationLayout.railWidth : undefined } }}>
     <Tabs.Screen name="practice" options={{ title: t('Trade') }} />
     <Tabs.Screen name="learn" options={{ title: t('Learn') }} />

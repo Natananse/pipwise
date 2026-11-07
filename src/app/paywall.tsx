@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Purchases, { PurchasesPackage } from 'react-native-purchases';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScreenSystemBars } from '../components/ScreenSystemBars';
 import { contentBottomPadding } from '../lib/navigation';
+import { responsiveLayout } from '../lib/responsiveLayout';
 import { AppButton, Icon, Label, Sheet } from '../components/design';
 import { ProIllustration } from '../components/ProIllustration';
 import { ReferralCard } from '../components/ReferralCard';
@@ -36,6 +37,7 @@ export default function Paywall() {
 }
 
 function ProScreen() {
+  const compact = responsiveLayout(useWindowDimensions()).compactHeight;
   const { plan, ready, session, leaveDemo, refreshPlan, preparePurchases } = useSession();
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<BillingCycle>('yearly');
@@ -119,7 +121,7 @@ function ProScreen() {
         <Label bold size={13} color={c.ink}>PIPWISE <Label bold size={13} color={c.blue}>PRO</Label></Label>
         <View style={{ width: 42 }} />
       </View>
-      <ProIllustration />
+      <ProIllustration height={compact ? 140 : 220} />
       <View style={{ paddingHorizontal: 22, gap: 25 }}>
         <View style={{ alignItems: 'center', gap: 12 }}>
           <View style={{ paddingHorizontal: 22, paddingVertical: 11, borderRadius: 99, backgroundColor: c.ink }}><Label bold size={12} color="#FFFFFF">{plan !== 'free' ? 'YOUR PRO MEMBERSHIP' : 'LEARN MORE. PRACTICE WISER.'}</Label></View>
@@ -137,7 +139,7 @@ function ProScreen() {
         {loading ? <View style={{ padding: 25, alignItems: 'center', gap: 10 }}><ActivityIndicator color={c.blue} /><Label muted size={12}>Checking available plans…</Label></View> : unavailable ? <View style={{ padding: 18, backgroundColor: c.bg, borderRadius: 18, gap: 8 }}><Label bold size={16}>Subscriptions are currently unavailable.</Label><Label size={12} color={c.muted}>No store plans are available to purchase. Continue with free lessons and virtual practice.</Label></View> : <View accessibilityRole="radiogroup" style={{ gap: 15 }}>
           {(['yearly', 'monthly'] as const).filter(cycle => packages[cycle]).map(cycle => <Pressable key={cycle} accessibilityRole="radio" accessibilityState={{ checked: selected === cycle, disabled: busy }} disabled={busy} onPress={() => setSelected(cycle)} style={({ pressed }) => ({ minHeight: 105, padding: 18, borderRadius: 25, borderWidth: selected === cycle ? 2 : 1.5, borderColor: selected === cycle ? c.blue : '#E1E6EC', backgroundColor: selected === cycle ? '#ECF3FE' : '#FFFFFF', gap: 5, opacity: pressed ? 0.75 : 1 })}>
             {cycle === 'yearly' && <View style={{ position: 'absolute', right: 18, top: -12, backgroundColor: c.blue, paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 }}><Label bold size={10} color="#FFFFFF">YEARLY PLAN</Label></View>}
-            <View style={{ flexDirection: 'row', gap: 13, alignItems: 'center' }}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 13, alignItems: 'center' }}>
               <View style={{ width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.blue, alignItems: 'center', justifyContent: 'center' }}>{selected === cycle && <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c.blue }} />}</View>
               <View style={{ flex: 1, gap: 5 }}><Label bold size={18} color={c.ink}>{cycle === 'yearly' ? 'Yearly' : 'Monthly'}</Label><Label size={10} color={c.muted}>{cycle === 'yearly' ? monthlyEquivalent ? `≈ ${monthlyEquivalent}/month · billed yearly` : 'Billed once each year' : 'Billed monthly · cancel renewal anytime'}</Label></View>
               <View style={{ alignItems: 'flex-end', gap: 4 }}><Label bold size={20} color={c.ink}>{price(cycle)}</Label><Label size={10} color={c.muted}>{cycle === 'yearly' ? '/ year' : '/ month'}</Label></View>

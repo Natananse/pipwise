@@ -68,6 +68,7 @@ function screen({ failureCode = 'EMAIL_NOT_VERIFIED', platform = 'android', soci
     '../lib/workspace': { useWorkspace: () => ({ language: 'en', t: value => value }) },
     '../lib/languages': { languages: [{ code: 'en' }] },
     '../lib/theme': { fonts: { extraBold: 'test-font' }, ThemeSurface: 'ThemeSurface' },
+    '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
     '../lib/authLinks': { authRedirectUri: () => 'pipwise://auth-callback' },
     '../lib/startupTasks': { withStartupTimeout: async task => task },
     '../lib/accountProfile': profile,

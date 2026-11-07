@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Share, Text, View, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppButton, AppInput, Badge, Chip, ErrorState, GlassCard, Icon, Label, Row } from '../components/design';
 import { TradingChart } from '../components/TradingChart';
 import { ScreenSystemBars } from '../components/ScreenSystemBars';
@@ -15,6 +15,7 @@ import { assets, type Candle } from '../lib/market';
 import { marketTimeframes, type MarketTimeframe } from '../lib/marketTypes';
 import { useSession } from '../lib/session';
 import { ThemeSurface } from '../lib/theme';
+import { fitChartHeight, responsiveLayout } from '../lib/responsiveLayout';
 
 const unavailable: CoachStatus = { available: false, provider: null, requiresSubscription: false, monthlyLimit: 10, message: 'In-app photo reviews are disabled until the owner connects a provider. Local file studies and manual ChatGPT prompts work now.' };
 const format = (value: number) => value.toLocaleString(undefined, { maximumSignificantDigits: 8 });
@@ -22,6 +23,7 @@ const format = (value: number) => value.toLocaleString(undefined, { maximumSigni
 export default function ChartCoach() { return <ThemeSurface tone="light"><CoachScreen /></ThemeSurface>; }
 
 function CoachScreen() {
+  const layout = responsiveLayout({ ...useWindowDimensions(), insets: useSafeAreaInsets() });
   const { plan, session } = useSession();
   const premium = plan === 'pro' || plan === 'elite';
   const [symbol, setSymbol] = useState('EUR/USD');
@@ -147,8 +149,8 @@ function CoachScreen() {
   return <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F7FA' }} edges={['top', 'left', 'right', 'bottom']}>
     <ScreenSystemBars style="dark" backgroundColor="#F5F7FA" />
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'web' ? undefined : 'padding'}>
-    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={false} contentContainerStyle={{ padding: 20, paddingBottom: 50, gap: 18, maxWidth: 760, width: '100%', alignSelf: 'center' }}>
-      <Row><AppButton compact variant="ghost" label="Back" icon="arrow-back" onPress={() => router.back()} /><Badge>CHART COACH · FREE LOCAL STUDIES</Badge></Row>
+    <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets={false} contentContainerStyle={{ padding: layout.compactHeight ? 12 : 20, paddingBottom: 50, gap: layout.compactHeight ? 12 : 18, maxWidth: 760, width: '100%', alignSelf: 'center' }}>
+      <Row style={{ flexWrap: 'wrap' }}><AppButton compact variant="ghost" label="Back" icon="arrow-back" onPress={() => router.back()} /><Badge>CHART COACH · FREE LOCAL STUDIES</Badge></Row>
       <View style={{ gap: 8 }}><Label bold size={30}>Read the chart. Build a plan.</Label><Label muted>Study candle files on this device, or prepare a prompt to use in your own ChatGPT conversation.</Label></View>
       <GlassCard>
         <Row><Icon name="scan-outline" size={25} /><Label bold style={{ flex: 1 }}>Your chart study</Label></Row>
@@ -156,13 +158,13 @@ function CoachScreen() {
         <AppButton label={picking ? 'Opening files…' : 'Choose chart photo or candle file'} icon="attach-outline" variant="secondary" disabled={busy || picking} onPress={() => { void choose(); }} />
         <Row style={{ flexWrap: 'wrap' }}><AppButton compact variant="ghost" label="Paste CSV / JSON" onPress={() => { setUpload(null); setText(''); setExample(false); setPaste(true); }} /><AppButton compact variant="ghost" label="Try a simulated example" onPress={sample} /></Row>
         {!!upload && <Row><Label size={12} style={{ flex: 1 }}>{upload.name} · {(upload.size / 1024).toFixed(0)} KB</Label><AppButton compact variant="ghost" label="Remove" onPress={() => { setUpload(null); setText(''); setConsent(false); }} /></Row>}
-        {image && <Image source={{ uri: upload!.uri }} accessibilityLabel="Selected chart preview" resizeMode="contain" style={{ width: '100%', height: 220, backgroundColor: '#E8EDF3', borderRadius: 12 }} />}
-        {paste && <><AppInput label="OHLC candles" multiline style={{ minHeight: 150, textAlignVertical: 'top' }} maxLength={1048576} value={text} onChangeText={setText} placeholder={'time,open,high,low,close\n2026-11-01T00:00:00Z,1.08,1.09,1.07,1.085'} /><Label muted size={11}>60–5,000 candles · CSV or JSON · under 1 MB. UTC ISO time or Unix seconds. Choose the timeframe used by your data.</Label></>}
+        {image && <Image source={{ uri: upload!.uri }} accessibilityLabel="Selected chart preview" resizeMode="contain" style={{ width: '100%', height: layout.compactHeight ? fitChartHeight(Math.max(100, layout.usableHeight - 160), 180, 100) : 220, backgroundColor: '#E8EDF3', borderRadius: 12 }} />}
+        {paste && <><AppInput label="OHLC candles" multiline style={{ minHeight: layout.compactHeight ? 96 : 150, textAlignVertical: 'top' }} maxLength={1048576} value={text} onChangeText={setText} placeholder={'time,open,high,low,close\n2026-11-01T00:00:00Z,1.08,1.09,1.07,1.085'} /><Label muted size={11}>60–5,000 candles · CSV or JSON · under 1 MB. UTC ISO time or Unix seconds. Choose the timeframe used by your data.</Label></>}
         {example && <Label bold size={12} color="#836200">Simulated example selected. These candles are generated practice data.</Label>}
         <Label bold size={12}>Market shown in your file</Label>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7 }}>{assets.map(asset => <Chip key={asset.symbol} label={asset.symbol} selected={symbol === asset.symbol} onPress={() => { setSymbol(asset.symbol); if (example) { setText(''); setExample(false); } }} />)}</ScrollView>
         <Label bold size={12}>Candle timeframe</Label><Row style={{ flexWrap: 'wrap', justifyContent: 'flex-start' }}>{marketTimeframes.map(value => <Chip key={value} label={value} selected={value === timeframe} onPress={() => { setTimeframe(value); if (example) { setText(''); setExample(false); } }} />)}</Row>
-        <Label bold size={12}>Study method</Label><Row style={{ justifyContent: 'flex-start' }}>{reviewStrategies.map(value => <Chip key={value} label={value} selected={strategy === value} onPress={() => setStrategy(value)} />)}</Row>
+        <Label bold size={12}>Study method</Label><Row style={{ justifyContent: 'flex-start', flexWrap: 'wrap' }}>{reviewStrategies.map(value => <Chip key={value} label={value} selected={strategy === value} onPress={() => setStrategy(value)} />)}</Row>
         <Label muted size={11}>{strategy === 'MSNR' ? 'MSNR-inspired: support/resistance and confirmed swing points.' : `${strategy}-inspired: structure, range liquidity sweeps and three-bar price gaps.`} These are basic educational rules, not an official or validated strategy system.</Label>
         <AppInput label="Fundamental notes (optional)" value={context} onChangeText={setContext} multiline maxLength={2000} placeholder="Add an event, date and source you want to consider." />
         <Label muted size={11}>No verified current news is attached. Your notes are treated as unverified context.</Label>
@@ -186,13 +188,13 @@ function CoachScreen() {
         <AppButton label={handoff ? 'Refresh ChatGPT prompt' : 'Prepare ChatGPT prompt'} icon="document-text-outline" variant="secondary" disabled={picking || busy || sharing} onPress={prepareHandoff} />
         {handoff && <>
           <AppButton label="Share text prompt" icon="share-outline" busy={sharing} onPress={() => { void shareHandoff(); }} />
-          <ScrollView nestedScrollEnabled style={{ maxHeight: 240 }} contentContainerStyle={{ padding: 12, backgroundColor: '#EEF2F7', borderRadius: 12 }}><Text selectable accessibilityLabel="ChatGPT study prompt" style={{ color: '#152238', fontSize: 12, lineHeight: 19 }}>{handoff.prompt}</Text></ScrollView>
+          <ScrollView nestedScrollEnabled style={{ maxHeight: layout.compactHeight ? fitChartHeight(Math.max(100, layout.usableHeight - 140), 180, 100) : 240 }} contentContainerStyle={{ padding: 12, backgroundColor: '#EEF2F7', borderRadius: 12 }}><Text selectable accessibilityLabel="ChatGPT study prompt" style={{ color: '#152238', fontSize: 12, lineHeight: 19 }}>{handoff.prompt}</Text></ScrollView>
           {!!handoff.notice && <Label muted size={12}>{handoff.notice}</Label>}
         </>}
         <AppButton label="Open ChatGPT" icon="open-outline" variant="ghost" onPress={() => { void openChatGPT(); }} />
       </GlassCard>
       {report && <>
-        <GlassCard><Badge>FILE STUDY · RULES BASED</Badge><Label size={22} bold>{report.title}</Label><Label muted size={11}>{report.source} · {report.candlesUsed} completed candles · through {new Date(report.lastClosedAt).toLocaleString()}</Label><TradingChart asset={assets.find(asset => asset.symbol === symbol)!} external={{ candles: candles.filter(candle => candle.time < report.lastClosedAt), timeframe, sample: example, loading: false, error: '', onTimeframeChange: value => setTimeframe(value as MarketTimeframe), onRetry: () => {} }} />{report.observations.map(value => <Label key={value}>{value}</Label>)}</GlassCard>
+        <GlassCard><Badge>FILE STUDY · RULES BASED</Badge><Label size={22} bold>{report.title}</Label><Label muted size={11}>{report.source} · {report.candlesUsed} completed candles · through {new Date(report.lastClosedAt).toLocaleString()}</Label><TradingChart asset={assets.find(asset => asset.symbol === symbol)!} plotHeight={layout.compactHeight ? fitChartHeight(Math.max(100, layout.usableHeight - 140), 260, 140) : undefined} external={{ candles: candles.filter(candle => candle.time < report.lastClosedAt), timeframe, sample: example, loading: false, error: '', onTimeframeChange: value => setTimeframe(value as MarketTimeframe), onRetry: () => {} }} />{report.observations.map(value => <Label key={value}>{value}</Label>)}</GlassCard>
         <GlassCard><Label size={20} bold>Levels to study</Label>{report.levels.map((level, i) => <Row key={`${level.label}-${i}`}><Label size={12} muted style={{ flex: 1 }}>{level.label}</Label><Label bold>{format(level.price)}</Label></Row>)}</GlassCard>
         <GlassCard><Label size={20} bold>Conditional scenarios</Label>{report.scenarios.map(value => <Label key={value}>{value}</Label>)}</GlassCard>
         <GlassCard><Label bold>What this review cannot tell you</Label>{report.limitations.map(value => <Label key={value} muted size={12}>{value}</Label>)}</GlassCard>

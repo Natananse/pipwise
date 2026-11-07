@@ -29,6 +29,7 @@ function harness(platform = 'android') {
     'expo-system-ui': { setBackgroundColorAsync: async color => backgrounds.push(color) },
     'react-native': { Platform: { OS: platform } },
     '../lib/systemBarOverrides': overrides,
+    '../lib/tradeChrome': { tradeChrome: { subscribe: () => () => {}, getSnapshot: () => ({ active: false, enabled: false, hidden: false }) } },
   });
   return { ...bars, backgrounds, effects, focus(value) { focused = value; } };
 }
@@ -106,7 +107,7 @@ test('native configuration keeps visible bars, transparent three-button mode, re
   const config = JSON.parse(fs.readFileSync('app.json', 'utf8')).expo;
   const plugins = new Map(config.plugins.filter(Array.isArray));
   assert.equal(config.android.softwareKeyboardLayoutMode, 'resize');
-  assert.equal(config.orientation, 'portrait');
+  assert.equal(config.orientation, 'default');
   assert.equal(config.backgroundColor, '#0D1011');
   assert.deepEqual(plugins.get('expo-navigation-bar'), { style: 'light', hidden: false, enforceContrast: false });
   assert.deepEqual(plugins.get('expo-status-bar'), { style: 'light', hidden: false });

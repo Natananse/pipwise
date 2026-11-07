@@ -90,12 +90,17 @@ function fixture(initialParams = {}, { appState = 'active', focused = true, prov
   }
   const { LiveMarkets } = load('src/components/LiveMarkets.tsx', {
     ...shared, '../lib/market': market, '../lib/navigation': navigation, '../lib/providerCharts': providerCharts,
+    '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
     '../lib/workspace': { useWorkspace: () => workspace }, './MarketBadge': { MarketBadge: 'MarketBadge' },
     './ProviderChart': { ProviderChart }, './design': design,
   });
   const { default: Trade } = load('src/app/(tabs)/practice.tsx', {
     ...shared, '../../components/MarketBadge': { MarketBadge: 'MarketBadge' }, '../../components/LiveMarkets': { LiveMarkets },
     '../../components/OrderBottomSheet': { OrderBottomSheet: 'OrderBottomSheet' }, '../../components/TradingChart': { TradingChart: 'TradingChart' },
+    '../../lib/uiPreferences': { useUiPreferences: () => ({ immersive: false }) },
+    '../../lib/useTradingWindow': { useTradingWindow: () => ({ width: 390, height: 844, fontScale: 1, landscape: false, keyboardVisible: false, onInputFocus() {}, onInputBlur() {} }) },
+    '../../lib/tradingLayout': load('src/lib/tradingLayout.ts'),
+    '../../lib/tradeChrome': { tradeChrome: { configure() {}, release() {}, reveal() {}, hide() {} } },
     '../../components/design': design, '../../lib/haptics': { lightHaptic() {} }, '../../lib/market': market,
     '../../lib/marketVisuals': { marketVisual: asset => ({ label: asset.name, color: '#6EE7BE', tint: '#17271E', ink: '#101010', mark: asset.mark }) },
     '../../lib/navigation': navigation, '../../lib/simulator': { summary: () => ({ equity: 10000 }) },

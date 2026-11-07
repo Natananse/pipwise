@@ -5,7 +5,7 @@ import { money } from '../lib/market';
 import { useTheme } from '../lib/theme';
 import { Label, Row } from './design';
 
-export function EquityCurve({ values }: { values: number[] }) {
+export function EquityCurve({ values, height = 190 }: { values: number[]; height?: number }) {
   const { colors } = useTheme();
   const low = Math.min(...values);
   const high = Math.max(...values);
@@ -18,7 +18,7 @@ export function EquityCurve({ values }: { values: number[] }) {
   const color = values[values.length - 1] >= values[0] ? colors.up : colors.down;
   return <View style={{ gap: 8 }}>
     <Row><Label muted size={10}>{money(high)}</Label><Label muted size={10}>Closed-trade balance · USD</Label></Row>
-    <Svg width="100%" height={190} viewBox="0 0 600 190" preserveAspectRatio="none" accessible accessibilityLabel={`Closed-trade balance curve. Starting ${money(values[0])}, ending ${money(values[values.length - 1])}. ${values.length - 1} closed trades.`}>
+    <Svg width="100%" height={height} viewBox="0 0 600 190" preserveAspectRatio="none" accessible accessibilityLabel={`Closed-trade balance curve. Starting ${money(values[0])}, ending ${money(values[values.length - 1])}. ${values.length - 1} closed trades.`}>
       {[20, 92, 164].map(v => <Line key={v} x1={8} x2={592} y1={v} y2={v} stroke={colors.border} strokeDasharray="4 6" />)}
       <Path d={`${path} L592,180 L8,180 Z`} fill={color} fillOpacity={0.08} />
       <Path d={path} stroke={color} strokeWidth={2.5} fill="none" />

@@ -20,10 +20,10 @@ const { formatBuildIdentity, TRADE_UI_MARKER } = load('src/lib/buildIdentity.ts'
 const native = { platform: 'android', executionEnvironment: 'standalone', nativeVersion: '1.2.3', nativeBuild: '17' };
 
 test('installed Android and iOS builds show native binary values and the exact UI marker', () => {
-  assert.equal(TRADE_UI_MARKER, 'Trade UI: Bright 1');
+  assert.equal(TRADE_UI_MARKER, 'Trade UI: Rotate 1');
   for (const platform of ['android', 'ios']) {
     const result = formatBuildIdentity({ ...native, platform });
-    assert.equal(result.marker, 'Trade UI: Bright 1');
+    assert.equal(result.marker, 'Trade UI: Rotate 1');
     assert.equal(result.details, 'App version: 1.2.3 · Build: 17');
     assert.equal(result.preview, false);
   }
@@ -65,7 +65,7 @@ function component(platform, executionEnvironment, version, build) {
 
 test('Settings marker component reads expo-application values rather than config or OTA versions', () => {
   const tree = component('android', 'standalone', '2.0.1', '27');
-  assert.equal(tree.props.children[0].props.children, 'Trade UI: Bright 1');
+  assert.equal(tree.props.children[0].props.children, 'Trade UI: Rotate 1');
   assert.equal(tree.props.children[1].props.children, 'App version: 2.0.1 · Build: 27');
   assert.equal(component('android', 'standalone', null, null).props.children[1].props.children, 'App version: Unknown · Build: Unknown');
   assert.equal(component('web', 'standalone', 'EXPO_HOST', '999').props.children[1].props.children, 'Preview · Browser');

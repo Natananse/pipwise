@@ -23,6 +23,7 @@ import { withStartupTimeout } from '../../lib/startupTasks';
 import { initialWallet, pnl, Position, summary } from '../../lib/simulator';
 import { fonts, ThemeSurface } from '../../lib/theme';
 import { useWorkspace } from '../../lib/workspace';
+import { responsiveLayout } from '../../lib/responsiveLayout';
 
 export default function Profile() {
   return <ThemeSurface tone="light"><ProfileWorkspace /></ThemeSurface>;
@@ -32,12 +33,15 @@ function ProfileWorkspace() {
   const { session, demo, plan, accountDetailsError, retryAccountDetails } = useSession();
   const { wallet, completed, profile, preferences, language, update, storageError } = useWorkspace();
   const identity = resolveProfileIdentity(session, profile);
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const compact = responsiveLayout({ width, height, insets }).compactHeight;
   const scroll = useRef<React.ElementRef<typeof ScrollView>>(null);
   const carousel = useRef<React.ElementRef<typeof ScrollView>>(null);
   const [page, setPage] = useState(0);
+  const selectedPage = useRef(0);
   const [cardWidth, setCardWidth] = useState(Math.min(width - 32, 940));
+  useEffect(() => { carousel.current?.scrollTo({ x: selectedPage.current * cardWidth, animated: false }); }, [cardWidth]);
   const [trades, setTrades] = useState<'Open' | 'Closed'>('Open');
   const [editor, setEditor] = useState(false);
   const [brokerGuide, setBrokerGuide] = useState(false);
@@ -68,9 +72,10 @@ function ProfileWorkspace() {
   const positions = trades === 'Open' ? wallet.positions : wallet.history;
   const nickname = identity.displayName;
   const wide = width > navigationLayout.wideBreakpoint;
+  const heroHeight = compact ? 206 + insets.top : wide ? 300 : 268 + insets.top;
   const clearance = { bottomInset: insets.bottom, wide, tabRoute: true };
   const footerSpace = contentBottomPadding({ ...clearance, contentGap: wide ? 40 : 22 });
-  const [heroEnd, setHeroEnd] = useState(wide ? 300 : 268 + insets.top);
+  const [heroEnd, setHeroEnd] = useState(heroHeight);
   const [bodyAtTop, setBodyAtTop] = useState(false);
   const scrollOffset = useRef(0);
   const updateTopSurface = (offset: number, darkSurfaceEnd = heroEnd) => {
@@ -150,24 +155,24 @@ function ProfileWorkspace() {
         const end = event.nativeEvent.layout.y + event.nativeEvent.layout.height;
         setHeroEnd(end);
         updateTopSurface(scrollOffset.current, end);
-      }} style={{ height: wide ? 300 : 268 + insets.top, backgroundColor: c.charcoal }}>
+      }} style={{ height: compact ? undefined : heroHeight, minHeight: compact ? heroHeight : undefined, backgroundColor: c.charcoal }}>
         <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}><Defs><LinearGradient id="profile-hero" x1="0%" y1="0%" x2="100%" y2="100%"><Stop offset="0" stopColor={c.heroStart} /><Stop offset="1" stopColor={c.heroEnd} /></LinearGradient></Defs><Rect width="100%" height="100%" fill="url(#profile-hero)" /><Rect y="99%" width="100%" height="1%" fill={c.mint} opacity={0.35} /></Svg>
-        <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: 1, alignItems: 'center', width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 20 }}>
-          <View style={{ alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: 12 }}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={{ flex: compact ? undefined : 1, alignItems: 'center', width: '100%', maxWidth: 1000, alignSelf: 'center', paddingHorizontal: 20, paddingBottom: compact ? 36 : undefined }}>
+          <View style={{ alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'flex-end', gap: 12, paddingTop: compact ? 6 : 12 }}>
             <Pressable accessibilityRole="button" accessibilityLabel="Profile settings" onPress={() => router.push('/settings')} style={({ pressed }) => [styles.heroButton, { width: 42, opacity: pressed ? 0.65 : 1 }]}><Icon name="settings-outline" size={24} color="#FFFFFF" /></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Explore Pro" onPress={() => router.push('/paywall')} style={({ pressed }) => [styles.heroButton, { paddingHorizontal: 18, opacity: pressed ? 0.65 : 1 }]}><Text style={{ fontFamily: fonts.extraBold, fontSize: 15, color: c.lemon }}>{plan === 'free' ? 'PRO' : plan.toUpperCase()}</Text></Pressable>
           </View>
-          <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile and avatar" onPress={openEditor} style={({ pressed }) => ({ marginTop: wide ? 5 : 17, opacity: pressed ? 0.8 : 1 })}>
-            <AvatarPortrait avatar={identity.avatarId} size={wide ? 104 : 94} />
+          <Pressable accessibilityRole="button" accessibilityLabel="Edit your profile and avatar" onPress={openEditor} style={({ pressed }) => ({ marginTop: compact ? 4 : wide ? 5 : 17, opacity: pressed ? 0.8 : 1 })}>
+            <AvatarPortrait avatar={identity.avatarId} size={compact ? 64 : wide ? 104 : 94} />
             <View style={styles.editBadge}><Icon name="pencil-outline" size={16} color={c.charcoal} /></View>
           </Pressable>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={{ color: '#FFFFFF', fontSize: width < 360 ? 23 : 27, lineHeight: 36, fontFamily: fonts.extraBold, textAlign: 'center', alignSelf: 'stretch', marginTop: 12 }}>{nickname}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} style={{ color: '#FFFFFF', fontSize: compact || width < 360 ? 23 : 27, lineHeight: compact ? 30 : 36, fontFamily: fonts.extraBold, textAlign: 'center', alignSelf: 'stretch', marginTop: compact ? 6 : 12 }}>{nickname}</Text>
           <Text numberOfLines={1} style={{ color: '#FFFFFFD9', fontSize: 11, fontFamily: fonts.medium, marginTop: 3 }}>{identity.email || (demo ? 'Your virtual trading journey' : 'Your personal practice workspace')}</Text>
         </SafeAreaView>
       </View>
       <View style={{ maxWidth: 1000, width: '100%', alignSelf: 'center', paddingLeft: (wide ? 30 : 16) + insets.left, paddingRight: (wide ? 30 : 16) + insets.right, marginTop: -31, gap: 20 }}>
         <View onLayout={event => setCardWidth(event.nativeEvent.layout.width)} style={styles.statsCard}>
-          <ScrollView ref={carousel} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => setPage(Math.round(event.nativeEvent.contentOffset.x / Math.max(1, event.nativeEvent.layoutMeasurement.width)))}>
+          <ScrollView ref={carousel} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={event => { const next = Math.max(0, Math.min(1, Math.round(event.nativeEvent.contentOffset.x / Math.max(1, event.nativeEvent.layoutMeasurement.width)))); selectedPage.current = next; setPage(next); }}>
             <View style={[styles.statPage, { width: cardWidth }]}>
               <StatCell icon="trending-up-outline" value={demoQuotesReady ? `${Math.abs(gain) < 0.005 ? '0' : gain.toFixed(2)}%` : '…'} caption="Total return" onPress={() => router.push('/portfolio')} />
               <StatCell icon="wallet-outline" value={demoQuotesReady ? money(stats.equity).replace('.00', '') : '…'} caption="Portfolio" onPress={() => router.push('/portfolio')} divided />
@@ -179,7 +184,7 @@ function ProfileWorkspace() {
               <StatCell icon="layers-outline" value={String(wallet.positions.length)} caption="Open trades" onPress={() => setTrades('Open')} divided />
             </View>
           </ScrollView>
-          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 13 }}>{[0, 1].map(index => <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Profile statistics page ${index + 1}`} accessibilityState={{ selected: page === index }} onPress={() => { carousel.current?.scrollTo({ x: index * cardWidth, animated: true }); setPage(index); }} hitSlop={10} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === index ? c.ink : '#CAD2DE' }} />)}</View>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, paddingBottom: 13 }}>{[0, 1].map(index => <Pressable key={index} accessibilityRole="button" accessibilityLabel={`Profile statistics page ${index + 1}`} accessibilityState={{ selected: page === index }} onPress={() => { selectedPage.current = index; carousel.current?.scrollTo({ x: index * cardWidth, animated: true }); setPage(index); }} hitSlop={10} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: page === index ? c.ink : '#CAD2DE' }} />)}</View>
         </View>
         {!!storageError && <View accessibilityRole="alert"><Label size={12} color={c.red}>{storageError}</Label></View>}
         <View style={styles.informationCard}>
@@ -215,7 +220,7 @@ function ProfileWorkspace() {
           <Icon name="chevron-forward" size={22} color="#BFC8D2" />
         </Pressable>
         <View style={styles.tradesCard}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <Text style={{ fontFamily: fonts.extraBold, color: c.ink, fontSize: 18 }}>My trades</Text>
             <View accessibilityRole="tablist" style={{ flexDirection: 'row', padding: 3, backgroundColor: '#E9EDF3', borderRadius: 24 }}>
               {(['Open', 'Closed'] as const).map(value => <Pressable key={value} accessibilityRole="tab" accessibilityLabel={`${value} trades`} accessibilityState={{ selected: trades === value }} onPress={() => setTrades(value)} style={({ pressed }) => ({ minHeight: 34, paddingHorizontal: width < 360 ? 11 : 15, justifyContent: 'center', borderRadius: 20, backgroundColor: trades === value ? '#FFFFFF' : 'transparent', opacity: pressed ? 0.7 : 1 })}><Text style={{ fontFamily: fonts.bold, color: trades === value ? c.ink : '#5D6877', fontSize: 12 }}>{value}</Text></Pressable>)}
@@ -237,7 +242,7 @@ function ProfileWorkspace() {
       {!!session && !contactEditable && <View accessibilityRole="alert" style={{ gap: 6 }}><Label size={12} color={c.muted}>{detailsLoading ? 'Loading your country and phone details… You can still update your name and avatar.' : 'Your contact details could not be loaded. You can still update your name and avatar; your saved country and phone will be preserved.'}</Label>{!!detailsError && <AppButton label="Retry loading contact details" variant="secondary" disabled={saving} onPress={() => setDetailsAttempt(value => value + 1)} />}</View>}
       <Label muted size={11}>{session ? 'Your name, country and optional phone are saved to your account. Your avatar is saved on this device.' : 'Your demo profile is saved on this device.'}</Label>
       <Label bold size={13}>Choose an avatar</Label>
-      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', gap: 14, justifyContent: 'center' }}>{(['trader', 'bull', 'owl'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`${value} avatar`} accessibilityState={{ checked: draftAvatar === value, disabled: saving }} disabled={saving} onPress={() => setDraftAvatar(value)} style={{ borderWidth: 2, borderColor: draftAvatar === value ? c.blue : 'transparent', borderRadius: 44, padding: 4, opacity: saving ? 0.5 : 1 }}><AvatarPortrait avatar={value} size={66} /></Pressable>)}</View>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'center' }}>{(['trader', 'bull', 'owl'] as const).map(value => <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`${value} avatar`} accessibilityState={{ checked: draftAvatar === value, disabled: saving }} disabled={saving} onPress={() => setDraftAvatar(value)} style={{ borderWidth: 2, borderColor: draftAvatar === value ? c.blue : 'transparent', borderRadius: 44, padding: 4, opacity: saving ? 0.5 : 1 }}><AvatarPortrait avatar={value} size={66} /></Pressable>)}</View>
       {!!saveError && <View accessibilityRole="alert"><Label color={c.red} size={12}>{saveError}</Label></View>}
       <AppButton label={saving ? 'Saving profile…' : 'Save profile'} busy={saving} disabled={saving} onPress={() => { void saveProfile(); }} />
     </Sheet>

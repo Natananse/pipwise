@@ -10,6 +10,7 @@ import { useMarketResource } from '../lib/marketProvider';
 import { sampleMarket } from '../lib/marketSample';
 import { type MarketArticle, type MarketResource, type MarketTimeframe, marketTimeframes } from '../lib/marketTypes';
 import { useWorkspace } from '../lib/workspace';
+import { fitChartHeight, responsiveLayout } from '../lib/responsiveLayout';
 import { MarketBadge } from './MarketBadge';
 import { TradingChart } from './TradingChart';
 import { Icon, Label, Row } from './design';
@@ -23,7 +24,8 @@ const stateLabels: Record<MarketResource<unknown>['state'], string> = {
 
 export function MarketDesk() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const layout = responsiveLayout({ width, height, insets });
   const { favorites, toggle, storageError } = useWorkspace();
   const [symbol, setSymbol] = useState('EUR/USD');
   const [timeframe, setTimeframe] = useState<MarketTimeframe>('1h');
@@ -59,7 +61,7 @@ export function MarketDesk() {
 
   return <View style={[s.screen, { paddingLeft: insets.left, paddingRight: insets.right }]}>
     <ScreenSystemBars style="light" backgroundColor={c.bg} />
-    <View style={{ paddingTop: insets.top + 10, paddingHorizontal: 18, paddingBottom: 12, borderBottomWidth: 1, borderColor: c.line }}>
+    <View style={{ paddingTop: insets.top + (layout.compactHeight ? 6 : 10), paddingHorizontal: 18, paddingBottom: layout.compactHeight ? 6 : 12, borderBottomWidth: 1, borderColor: c.line }}>
       <Row style={s.header}>
         <Action label="Back to practice" icon="arrow-back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/practice')} />
         <View style={{ flex: 1 }}><Label bold size={19} color={c.ink}>Market desk</Label><Label size={10} color={c.sub}>Prices, context &amp; conditional outlooks</Label></View>
@@ -95,7 +97,7 @@ export function MarketDesk() {
         </View>
 
         <View style={[s.card, { flex: wide ? 0.64 : undefined, padding: 12 }]}>
-          <TradingChart key={`${symbol}-${timeframe}-${mode}`} asset={asset} terminal referenceUI accentColor={c.mint} plotHeight={wide ? 330 : 260} external={{
+          <TradingChart key={`${symbol}-${timeframe}-${mode}`} asset={asset} terminal referenceUI accentColor={c.mint} plotHeight={layout.compactHeight ? fitChartHeight(Math.max(100, layout.usableHeight - 140), 260, 140) : wide ? 330 : 260} external={{
             candles: series?.candles ?? emptyCandles, timeframe, sample,
             loading: !sample && !series && candles.state === 'loading',
             error: !sample && !series && candles.state !== 'loading' ? candles.error ?? 'Candles are not connected yet. Try sample data to explore the chart.' : '',

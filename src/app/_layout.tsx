@@ -19,6 +19,7 @@ import { ThemeProvider, ThemeSurface } from '../lib/theme';
 import { CURRENT_ONBOARDING_VERSION, WorkspaceProvider, useWorkspace } from '../lib/workspace';
 import { DemoMarketProvider, useDemoMarketStatus } from '../lib/demoMarketProvider';
 import { resumePersistenceAfterAccountDeletion } from '../lib/persistence';
+import { OrientationCoordinator, OrientationScope, PortraitRouteGuard, PortraitStartupGate } from '../components/OrientationCoordinator';
 
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -46,15 +47,16 @@ function Guard({ fontsReady }: { fontsReady: boolean }) {
 
   const covered = !resourcesReady || !splashFinished || !!redirect;
   return <View style={{ flex: 1, backgroundColor: '#0C100F' }} onLayout={() => setLaidOut(true)}>
-    <View style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} aria-hidden={covered}><Slot /></View>
-    {covered && <View style={StyleSheet.absoluteFill}><ThemeSurface tone="dark" systemBars>
+    <OrientationScope startupCovered={covered} setupComplete={onboarded && hasCurrentSetup && hasCompleteOnboardingAnswers(preferences)} onboardingPreviewActive={onboardingPreviewActive} />
+    <View style={{ flex: 1 }} pointerEvents={covered ? 'none' : 'auto'} accessibilityElementsHidden={covered} importantForAccessibility={covered ? 'no-hide-descendants' : 'auto'} aria-hidden={covered}><PortraitRouteGuard required={top === 'onboarding'}><Slot /></PortraitRouteGuard></View>
+    {covered && <View style={StyleSheet.absoluteFill}><ThemeSurface tone="dark" systemBars><PortraitStartupGate>
       {fontsReady && error ? <SafeAreaView style={{ flex: 1, backgroundColor: '#0C100F', padding: 24, justifyContent: 'center', gap: 24 }}>
         <WelcomeArtwork compact reducedMotion />
         <Label bold size={24} style={{ textAlign: 'center' }}>Let’s get you back in.</Label>
         <View accessibilityRole="alert"><Label muted style={{ textAlign: 'center' }}>{error} Your saved data has not been cleared.</Label></View>
         <AppButton label="Try again" onPress={() => { retryInitialization(); retryWorkspace(); retryDemoPrices(); }} />
       </SafeAreaView> : splashFinished ? <View style={{ flex: 1, backgroundColor: '#0C100F' }} /> : <LaunchSplash fontsReady={fontsReady} resourcesReady={resourcesReady && !redirect} language={language} onComplete={finishSplash} />}
-    </ThemeSurface></View>}
+    </PortraitStartupGate></ThemeSurface></View>}
   </View>;
 }
 
@@ -69,6 +71,7 @@ export default function Root() {
     return () => clearTimeout(fallback);
   }, [fontError, fontsLoaded]);
   return <SafeAreaProvider><ThemeProvider><SessionProvider>
+    <OrientationCoordinator publicPage={publicPage} />
     <AccountWorkspace fontsReady={fontsLoaded || !!fontError || fontFallback} publicPage={publicPage} />
   </SessionProvider></ThemeProvider></SafeAreaProvider>;
 }

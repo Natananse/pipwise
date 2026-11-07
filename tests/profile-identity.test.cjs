@@ -123,6 +123,7 @@ function profileHarness() {
     '../../lib/demoMarketProvider': { useDemoMarket: () => ({ quotes: {}, ready: true }) },
     '../../lib/languages': { languageInfo: () => ({ nativeName: 'አማርኛ' }) },
     '../../lib/navigation': load('src/lib/navigation.ts'),
+    '../../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
     '../../lib/market': { money: value => `$${value}` },
     '../../lib/neonAuth': { updateDisplayName: async name => { requests.push(name); return save(name); } },
     '../../lib/profileIdentity': { resolveProfileIdentity },

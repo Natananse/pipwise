@@ -5,13 +5,16 @@ import { AppButton, Icon, Label, Row, Sheet } from '../../components/design';
 import { ReferenceScreen, referenceColors as c } from '../../components/reference';
 import { Lesson, lessonChapters, lessons } from '../../lib/lessons';
 import { fonts } from '../../lib/theme';
+import { responsiveLayout } from '../../lib/responsiveLayout';
 import { useWorkspace } from '../../lib/workspace';
 
 const ordinals = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 
 export default function Learn() {
   const { completed, bookmarks, toggle, loaded } = useWorkspace();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const compact = responsiveLayout({ width, height }).compactHeight;
+  const tileSize = compact ? 72 : 86;
   const completedSet = useMemo(() => new Set(completed), [completed]);
   const completedCount = lessons.filter(item => completedSet.has(item.id)).length;
   const nextIndex = lessons.findIndex(item => !completedSet.has(item.id));
@@ -51,8 +54,8 @@ export default function Learn() {
 
   return <ReferenceScreen contentStyle={{ padding: 0, gap: 0 }}>
     <View style={{ width: '100%', maxWidth: 680, alignSelf: 'center' }}>
-      <View style={{ paddingHorizontal: 18, paddingTop: 36, paddingBottom: 28, alignItems: 'center', gap: 18 }}>
-        <Label size={width < 360 ? 25 : 29} bold color="#3D1728" style={{ fontFamily: fonts.extraBold, textAlign: 'center', lineHeight: width < 360 ? 35 : 40, letterSpacing: -0.7 }}>THE {lessons.length}-LESSON{'\n'}TRADING CHALLENGE</Label>
+      <View style={{ paddingHorizontal: 18, paddingTop: compact ? 14 : 36, paddingBottom: compact ? 14 : 28, alignItems: 'center', gap: compact ? 10 : 18 }}>
+        <Label size={compact ? 24 : width < 360 ? 25 : 29} bold color="#3D1728" style={{ fontFamily: fonts.extraBold, textAlign: 'center', lineHeight: compact ? 32 : width < 360 ? 35 : 40, letterSpacing: -0.7 }}>THE {lessons.length}-LESSON{'\n'}TRADING CHALLENGE</Label>
         <Label size={16} color="#5B6573" style={{ textAlign: 'center' }}>Trade with confidence</Label>
         <View style={{ width: '100%', maxWidth: 320, gap: 8, marginTop: 2 }}>
           <Row><Label size={10} color={c.muted}>{completedCount} of {lessons.length} complete</Label><Pressable accessibilityRole="button" onPress={() => setLibraryVisible(true)} style={{ minHeight: 32, justifyContent: 'center' }}><Label size={10} bold color={c.blue}>Lesson library</Label></Pressable></Row>
@@ -63,19 +66,19 @@ export default function Learn() {
         <Pressable accessibilityRole="button" accessibilityLabel="Choose chapter" onPress={() => setChaptersVisible(true)} style={{ alignSelf: 'center', minHeight: 44, justifyContent: 'center', marginBottom: 8 }}>
           <Row><Label size={13} bold color={c.muted}>Chapter {ordinals[chapterIndex]}</Label><Icon name="chevron-down" color={c.muted} size={15} /></Row>
         </Pressable>
-        <View accessibilityLabel={`${chapter.title}, ${chapterCompleted} of ${chapterLessons.length} lessons complete`} style={{ padding: 20, minHeight: 110, borderRadius: 22, borderWidth: 2, borderColor: c.ink, backgroundColor: chapter.color, shadowColor: c.ink, shadowOffset: { width: 4, height: 5 }, shadowRadius: 0, shadowOpacity: 0.15, elevation: 2 }}>
+        <View accessibilityLabel={`${chapter.title}, ${chapterCompleted} of ${chapterLessons.length} lessons complete`} style={{ padding: compact ? 14 : 20, minHeight: compact ? 88 : 110, borderRadius: 22, borderWidth: 2, borderColor: c.ink, backgroundColor: chapter.color, shadowColor: c.ink, shadowOffset: { width: 4, height: 5 }, shadowRadius: 0, shadowOpacity: 0.15, elevation: 2 }}>
           <Row><View style={{ flex: 1, gap: 8 }}><Label size={24} bold color={c.ink} style={{ fontFamily: fonts.extraBold }}>{chapter.title}</Label><Row style={{ justifyContent: 'flex-start' }}><CoinMark /><Label size={11} color={c.muted}>{chapter.category}</Label></Row></View><Label size={20} bold color={c.ink}>{chapterCompleted} / {chapterLessons.length}</Label></Row>
         </View>
         <View onLayout={event => setPathWidth(event.nativeEvent.layout.width)}>
-          <Svg width="100%" height={62} viewBox={`0 0 ${pathWidth} 62`}><Path d="M43 0 V62" stroke={c.ink} strokeWidth={3} strokeLinecap="round" fill="none" /></Svg>
+          <Svg width="100%" height={compact ? 36 : 62} preserveAspectRatio="none" viewBox={`0 0 ${pathWidth} 62`}><Path d={`M${tileSize / 2} 0 V62`} stroke={c.ink} strokeWidth={3} strokeLinecap="round" fill="none" /></Svg>
           {chapterLessons.map((item, index) => {
             const done = completedSet.has(item.id);
             const active = unlocked(item);
             const reverse = index % 2 === 1;
             const globalIndex = lessons.indexOf(item);
             return <View key={item.id}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Lesson ${globalIndex + 1}: ${item.title}. ${done ? 'Completed, review lesson' : active ? 'Ready to start' : 'Complete earlier lessons to unlock'}`} accessibilityState={{ disabled: !active || !loaded }} disabled={!active || !loaded} onPress={() => openLesson(item)} style={({ pressed }) => ({ minHeight: 104, flexDirection: reverse ? 'row-reverse' : 'row', alignItems: 'center', gap: width < 360 ? 14 : 20, opacity: active ? pressed ? 0.7 : 1 : 0.42 })}>
-                <View style={{ width: 86, height: 86, borderRadius: 24, backgroundColor: done ? '#E4F8ED' : active ? chapter.color : '#EEF0F3', borderWidth: 2, borderColor: active ? c.ink : '#929AA3', alignItems: 'center', justifyContent: 'center', shadowColor: c.ink, shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.13, shadowRadius: 0, elevation: active ? 2 : 0 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Lesson ${globalIndex + 1}: ${item.title}. ${done ? 'Completed, review lesson' : active ? 'Ready to start' : 'Complete earlier lessons to unlock'}`} accessibilityState={{ disabled: !active || !loaded }} disabled={!active || !loaded} onPress={() => openLesson(item)} style={({ pressed }) => ({ minHeight: compact ? 88 : 104, flexDirection: reverse ? 'row-reverse' : 'row', alignItems: 'center', gap: width < 360 ? 14 : 20, opacity: active ? pressed ? 0.7 : 1 : 0.42 })}>
+                <View style={{ width: tileSize, height: tileSize, borderRadius: 24, backgroundColor: done ? '#E4F8ED' : active ? chapter.color : '#EEF0F3', borderWidth: 2, borderColor: active ? c.ink : '#929AA3', alignItems: 'center', justifyContent: 'center', shadowColor: c.ink, shadowOffset: { width: 4, height: 5 }, shadowOpacity: 0.13, shadowRadius: 0, elevation: active ? 2 : 0 }}>
                   {done ? <Icon name="checkmark" size={39} color="#1D9765" /> : globalIndex === 0 ? <TargetMark /> : <Icon name={item.icon} size={36} color={active ? c.ink : '#929AA3'} />}
                   {!active && <View style={{ position: 'absolute', bottom: -7, right: -6, backgroundColor: '#F5F8FC', borderRadius: 12, padding: 4 }}><Icon name="lock-closed" size={13} color="#8993A0" /></View>}
                 </View>
@@ -85,8 +88,8 @@ export default function Learn() {
                   {active && !done && <Label size={10} color={c.muted}>{item.minutes} min · Tap to start</Label>}
                 </View>
               </Pressable>
-              {index < chapterLessons.length - 1 && <Svg width="100%" height={70} viewBox={`0 0 ${pathWidth} 70`}>
-                <Path d={reverse ? `M${pathWidth - 43} 0 V15 Q${pathWidth - 43} 35 ${pathWidth - 63} 35 H63 Q43 35 43 55 V70` : `M43 0 V15 Q43 35 63 35 H${pathWidth - 63} Q${pathWidth - 43} 35 ${pathWidth - 43} 55 V70`} stroke={done ? '#2CC6A1' : '#DEE4EB'} strokeWidth={3} strokeDasharray={done ? undefined : '2 9'} strokeLinecap="round" fill="none" />
+              {index < chapterLessons.length - 1 && <Svg width="100%" height={compact ? 44 : 70} preserveAspectRatio="none" viewBox={`0 0 ${pathWidth} 70`}>
+                <Path d={reverse ? `M${pathWidth - tileSize / 2} 0 V15 Q${pathWidth - tileSize / 2} 35 ${pathWidth - tileSize / 2 - 20} 35 H${tileSize / 2 + 20} Q${tileSize / 2} 35 ${tileSize / 2} 55 V70` : `M${tileSize / 2} 0 V15 Q${tileSize / 2} 35 ${tileSize / 2 + 20} 35 H${pathWidth - tileSize / 2 - 20} Q${pathWidth - tileSize / 2} 35 ${pathWidth - tileSize / 2} 55 V70`} stroke={done ? '#2CC6A1' : '#DEE4EB'} strokeWidth={3} strokeDasharray={done ? undefined : '2 9'} strokeLinecap="round" fill="none" />
               </Svg>}
             </View>;
           })}

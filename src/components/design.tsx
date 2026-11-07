@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useSegments } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputProps, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, ThemeSurface, useTheme, type Colors } from '../lib/theme';
 import { contentBottomPadding, navigationLayout } from '../lib/navigation';
+import { focusedFieldScrollOffset, responsiveLayout } from '../lib/responsiveLayout';
 import { useWorkspace } from '../lib/workspace';
 import { AppLogo } from './AppLogo';
 import { ModalSystemBars, ScreenSystemBars } from './ScreenSystemBars';
@@ -68,20 +69,43 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
   const { colors } = useTheme();
   const { width } = useWindowDimensions();
   const content = <ThemeSurface tone="light">{visible && <ModalSystemBars centered={width > 700} />}<SheetContent colors={colors} onClose={onClose} title={title}>{children}</SheetContent></ThemeSurface>;
-  return <Modal visible={visible} transparent statusBarTranslucent navigationBarTranslucent animationType="fade" onRequestClose={onClose}>
+  return <Modal visible={visible} transparent statusBarTranslucent navigationBarTranslucent supportedOrientations={['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right']} animationType="fade" onRequestClose={onClose}>
     {Platform.OS === 'web' ? content : <SafeAreaProvider>{content}</SafeAreaProvider>}
   </Modal>;
 }
 function SheetContent({ colors, onClose, title, children }: Omit<SheetProps, 'visible'> & { colors: Colors }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [frameHeight, setFrameHeight] = useState<number | null>(null);
+  const compact = responsiveLayout({ width, height: frameHeight ?? height, insets }).compactHeight;
+  const scroll = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const offset = useRef(0);
+  const focusedWithin = useRef(false);
+  const focusFrame = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const revealFocused = useCallback(() => {
+    if (Platform.OS === 'web' || !focusedWithin.current) return;
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      if (!focusedWithin.current) return;
+      const input = TextInput.State.currentlyFocusedInput();
+      const viewport = scroll.current;
+      if (!input || !viewport) return;
+      input.measureInWindow((_x, top, _width, fieldHeight) => viewport.measureInWindow((_left, viewportTop, _w, viewportHeight) => {
+        if (!focusedWithin.current || scroll.current !== viewport || TextInput.State.currentlyFocusedInput() !== input) return;
+        const next = focusedFieldScrollOffset({ offset: offset.current, viewportTop, viewportHeight, fieldTop: top, fieldHeight });
+        if (Math.abs(next - offset.current) > 1) viewport.scrollTo({ y: next, animated: false });
+      }));
+    });
+  }, []);
+  useEffect(() => () => { if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current); }, []);
   return <KeyboardAvoidingView behavior={Platform.OS === 'web' ? undefined : 'padding'} style={{ flex: 1 }}>
-    <View style={{ flex: 1, backgroundColor: colors.overlay, paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, justifyContent: width > 700 ? 'center' : 'flex-end', alignItems: 'center' }}>
+    <View onLayout={event => setFrameHeight(event.nativeEvent.layout.height)} style={{ flex: 1, backgroundColor: colors.overlay, paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right, justifyContent: width > 700 && !compact ? 'center' : 'flex-end', alignItems: 'center' }}>
       <Pressable accessibilityLabel="Close dialog" accessibilityRole="button" onPress={onClose} style={StyleSheet.absoluteFill} />
-      <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, maxHeight: '92%', backgroundColor: colors.sheet, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: width > 700 ? 32 : 0, borderBottomRightRadius: width > 700 ? 32 : 0, padding: 24 }}>
-        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.sheetBorder, alignSelf: 'center', marginBottom: 16 }} />
-        <Row><Label size={22} bold style={{ flex: 1 }}>{title}</Label><IconButton name="close" label="Close" onPress={onClose} /></Row>
-        <ScrollView automaticallyAdjustKeyboardInsets={false} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingTop: 24, paddingBottom: 16 }}>{children}</ScrollView>
+      <SafeAreaView edges={['bottom']} style={{ width: '100%', maxWidth: 560, maxHeight: compact ? '100%' : '92%', flexShrink: 1, backgroundColor: colors.sheet, borderTopLeftRadius: compact ? 20 : 32, borderTopRightRadius: compact ? 20 : 32, borderBottomLeftRadius: width > 700 && !compact ? 32 : 0, borderBottomRightRadius: width > 700 && !compact ? 32 : 0, padding: compact ? 12 : 24 }}>
+        {!compact && <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.sheetBorder, alignSelf: 'center', marginBottom: 16 }} />}
+        <Row><Label size={compact ? 18 : 22} bold style={{ flex: 1 }}>{title}</Label><IconButton name="close" label="Close" onPress={onClose} /></Row>
+        <ScrollView ref={scroll} style={{ flexShrink: 1, minHeight: 0 }} onFocus={() => { focusedWithin.current = true; revealFocused(); }} onBlur={() => { focusedWithin.current = false; }} onLayout={revealFocused} onScroll={event => { offset.current = event.nativeEvent.contentOffset.y; }} scrollEventThrottle={16} scrollsChildToFocus automaticallyAdjustKeyboardInsets={false} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: compact ? 12 : 16, paddingTop: compact ? 8 : 24, paddingBottom: compact ? 8 : 16 }}>{children}</ScrollView>
       </SafeAreaView>
     </View>
   </KeyboardAvoidingView>;

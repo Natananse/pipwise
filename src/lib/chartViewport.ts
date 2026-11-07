@@ -1,5 +1,6 @@
 /** Fractional candle indices; the first and last centers span count - 1. */
 export type ChartViewport = { start: number; count: number };
+export type ChartPlotRect = { left: number; top: number; width: number; height: number };
 export type ChartCandle = { time: number; open: number; high: number; low: number; close: number };
 export type ChartLayout = { left: number; top: number; width: number; height: number; precision: number };
 
@@ -35,6 +36,17 @@ function dataLength(length: number): number {
 function bound(value: number, low: number, high: number): number {
   'worklet';
   return Math.max(low, Math.min(high, value));
+}
+
+/** Preserve the inspected data position when the same plot changes its pixel rectangle. */
+export function reprojectInspection(inspection: { active: boolean; x: number; y: number }, previous: ChartPlotRect, next: ChartPlotRect): { active: boolean; x: number; y: number } {
+  'worklet';
+  if (!inspection.active) return inspection;
+  if (!Number.isFinite(previous.left) || !Number.isFinite(previous.top) || !Number.isFinite(next.left) || !Number.isFinite(next.top) || !Number.isFinite(previous.width) || previous.width <= 0 || !Number.isFinite(next.width) || next.width <= 0) return { ...inspection, active: false };
+  const ratio = bound((finite(inspection.x, previous.left) - previous.left) / previous.width, 0, 1);
+  const vertical = previous.height > 0 && next.height > 0 && Number.isFinite(previous.height) && Number.isFinite(next.height);
+  const y = vertical ? next.top + bound((finite(inspection.y, previous.top) - previous.top) / previous.height, 0, 1) * next.height : inspection.y;
+  return { active: true, x: next.left + ratio * next.width, y };
 }
 
 export function clampViewport(viewport: ChartViewport, length: number): ChartViewport {

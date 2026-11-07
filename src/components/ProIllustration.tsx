@@ -2,8 +2,8 @@ import React from 'react';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
 /** Original code-native illustration for the learning subscription screen. */
-export function ProIllustration() {
-  return <Svg width="100%" height={220} viewBox="0 0 360 220" accessible={false}>
+export function ProIllustration({ height = 220 }: { height?: number }) {
+  return <Svg width="100%" height={height} viewBox="0 0 360 220" accessible={false}>
     <Defs><LinearGradient id="pro-sky" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#DCEBFA" /><Stop offset="1" stopColor="#FFFFFF" /></LinearGradient><LinearGradient id="pro-chart" x1="0" y1="0" x2="0" y2="1"><Stop offset="0" stopColor="#7E77B6" /><Stop offset="1" stopColor="#C1C5DE" /></LinearGradient></Defs>
     <Rect width={360} height={220} fill="url(#pro-sky)" />
     <Circle cx={180} cy={91} r={94} fill="#ECF5FC" />

@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, Share, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, Share, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { AppButton, Icon, Label, Row } from '../components/design';
 import { ReferenceCard, ReferenceScreen, referenceColors as c } from '../components/reference';
 import { createFeedbackReportId, feedbackAlreadyDelivered, feedbackCategories, feedbackPayload, formatFeedbackReport, validateFeedback, type FeedbackCategory, type FeedbackPayload } from '../lib/feedback';
@@ -10,11 +10,13 @@ import { withStartupTimeout } from '../lib/startupTasks';
 import { feedbackConfigured, submitFeedback } from '../lib/feedbackClient';
 import { fonts } from '../lib/theme';
 import { useWorkspace } from '../lib/workspace';
+import { responsiveLayout } from '../lib/responsiveLayout';
 
 const lime = '#C8F169';
 const categoryLabels = { bug: 'Report a bug', idea: 'Suggest an idea', other: 'Other feedback' };
 
 export default function Feedback() {
+  const compact = responsiveLayout(useWindowDimensions()).compactHeight;
   const { session } = useSession();
   const { language } = useWorkspace();
   const [rating, setRating] = useState(0);
@@ -100,7 +102,7 @@ export default function Feedback() {
           </View>
           <View style={{ gap: 8 }}>
             <Label bold color={c.ink}>Your review</Label>
-            <TextInput accessibilityLabel="Your review" value={message} onChangeText={value => { setMessage(value); setError(''); setNotice(''); setReport(''); }} editable={!busy} multiline maxLength={2000} placeholder="What happened? What did you expect? Which screen were you using?" placeholderTextColor={c.muted} textAlignVertical="top" style={{ minHeight: 150, padding: 15, borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: '#F4F3EF', color: c.ink, fontFamily: fonts.medium, fontSize: 14, lineHeight: 21 }} />
+            <TextInput accessibilityLabel="Your review" value={message} onChangeText={value => { setMessage(value); setError(''); setNotice(''); setReport(''); }} editable={!busy} multiline maxLength={2000} placeholder="What happened? What did you expect? Which screen were you using?" placeholderTextColor={c.muted} textAlignVertical="top" style={{ minHeight: compact ? 96 : 150, padding: 15, borderRadius: 18, borderWidth: 1, borderColor: c.line, backgroundColor: '#F4F3EF', color: c.ink, fontFamily: fonts.medium, fontSize: 14, lineHeight: 21 }} />
             <Label size={10} color={c.muted} style={{ textAlign: 'right' }}>{message.length} / 2,000</Label>
           </View>
           {!!error && <View accessibilityRole="alert"><Label size={12} color={c.red}>{error}</Label></View>}

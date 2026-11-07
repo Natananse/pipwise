@@ -38,11 +38,16 @@ function screen({ signedIn = true, connected = true, identityFailure = false } =
     react,
     'expo-router': { router: { push: route => calls.push(`push:${route}`), replace: route => calls.push(`replace:${route}`) } },
     'expo-status-bar': { StatusBar: 'StatusBar' },
-    'react-native': { Platform: { OS: 'android' }, ...Object.fromEntries(['ActivityIndicator', 'Pressable', 'ScrollView', 'View'].map(name => [name, name])) },
+    'react-native': { Platform: { OS: 'android' }, useWindowDimensions: () => ({ width: 390, height: 844 }), ...Object.fromEntries(['ActivityIndicator', 'Pressable', 'ScrollView', 'View'].map(name => [name, name])) },
     'react-native-purchases': purchases,
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) },
     '../components/ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars' },
     '../lib/navigation': { contentBottomPadding: ({ bottomInset, contentGap }) => bottomInset + contentGap },
+    '../lib/responsiveLayout': (() => {
+      const module = { exports: {} };
+      vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/responsiveLayout.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports });
+      return module.exports;
+    })(),
     '../components/design': Object.fromEntries(['AppButton', 'Icon', 'Label', 'Sheet'].map(name => [name, name])),
     '../components/ProIllustration': { ProIllustration: 'ProIllustration' },
     '../components/ReferralCard': { ReferralCard: 'ReferralCard' },

@@ -69,9 +69,9 @@ function screen({ signedIn = false, coachStatus = { available: false, provider: 
     react,
     'expo-router': { router: { back() {}, push: value => calls.push({ route: value }) } },
     'expo-linking': { openURL: async value => calls.push({ url: value }) },
-    'react-native': { ...Object.fromEntries(['Image', 'KeyboardAvoidingView', 'Pressable', 'ScrollView', 'Text', 'View'].map(value => [value, value])), Platform: { OS: 'android' },
+    'react-native': { ...Object.fromEntries(['Image', 'KeyboardAvoidingView', 'Pressable', 'ScrollView', 'Text', 'View'].map(value => [value, value])), Platform: { OS: 'android' }, useWindowDimensions: () => ({ width: 390, height: 844 }),
       Share: { dismissedAction: 'dismissedAction', share: async value => { calls.push({ share: value }); return { action: 'sharedAction' }; } } },
-    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
+    'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) },
     '../components/design': Object.fromEntries(['AppButton', 'AppInput', 'Badge', 'Chip', 'ErrorState', 'GlassCard', 'Icon', 'Label', 'Row'].map(value => [value, value])),
     '../components/TradingChart': { TradingChart: 'TradingChart' },
     '../components/ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars' },
@@ -87,6 +87,7 @@ function screen({ signedIn = false, coachStatus = { available: false, provider: 
     '../lib/marketTypes': types,
     '../lib/session': { useSession: () => ({ plan: 'free', session: signedIn ? { user: { id: 'verified-free-account' } } : null }) },
     '../lib/theme': { ThemeSurface: 'ThemeSurface' },
+    '../lib/responsiveLayout': load('src/lib/responsiveLayout.ts'),
   };
   const app = load('src/app/chart-coach.tsx', imports, { setTimeout: () => 1, clearTimeout() {} });
   function expand(value) {
