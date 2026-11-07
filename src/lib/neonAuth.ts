@@ -209,28 +209,75 @@ export async function refreshAuthSession(options?: { timeout?: number }): Promis
 
 export async function getAuthToken(): Promise<string> {
   const generation = clientGeneration;
-  const result = await (await getClient()).token();
+  // The installed adapter shares its session cache with /token. Force the token
+  // endpoint so this call cannot receive a cached { user, session } response.
+  const result = await (await getClient()).token({ fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, timeout: 10000 } });
   assertAuthGeneration(generation);
   check(result.error);
-  if (!result.data?.token) throw new Error('Sign in again to continue.');
+  if (typeof result.data?.token !== 'string' || !result.data.token) throw new Error('Sign in again to continue.');
   return result.data.token;
 }
 
-/** A real, current Auth session proves ownership in addition to the short-lived JWT. */
-export async function getAccountDeletionCredentials(expectedAccountId?: string) {
+function backendSessionProof(value: unknown): { accountId: string; sessionToken: string } | null {
+  const record = (item: unknown): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item);
+  if (!record(value) || !record(value.user) || !record(value.session)) return null;
+  const sessionToken = value.session.token;
+  if (typeof value.user.id !== 'string' || !value.user.id || value.user.emailVerified !== true
+    || typeof sessionToken !== 'string' || !sessionToken || sessionToken.length > 2048
+    || /\s|[\u0000-\u001f\u007f]/u.test(sessionToken)
+    || /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(sessionToken)) return null;
+  return { accountId: value.user.id, sessionToken };
+}
+
+/** Session proof stays in request headers, never in persisted profile/UI state. */
+export async function getBackendCredentials(expectedAccountId?: string) {
   const generation = clientGeneration;
-  const client = await getClient();
-  const result = await client.getSession({ fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, timeout: 10000 } });
-  assertAuthGeneration(generation);
-  check(result.error);
-  const user = result.data?.user;
-  const sessionToken = result.data?.session?.token;
-  if (!user?.id || user.emailVerified !== true || !sessionToken || (expectedAccountId && user.id !== expectedAccountId))
-    throw new Error('Sign in to the account you want to delete, then try again.');
-  const token = await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Please try again.');
-  assertAuthGeneration(generation);
-  currentAuthAccountId = user.id;
-  return { accountId: user.id, sessionToken, token };
+  let accountId = expectedAccountId ?? currentAuthAccountId;
+  let changed = false;
+  const unsubscribe = subscribeAuth(next => {
+    if (accountId && next?.user.id !== accountId) changed = true;
+  });
+  const unchanged = () => {
+    assertAuthGeneration(generation);
+    if (changed) throw new AccountAccessError({ code: 'AUTH_SESSION_CHANGED', message: 'Your account changed. Please try again.' });
+  };
+  try {
+    const client = await getClient();
+    const raw: { proof?: ReturnType<typeof backendSessionProof>; token?: string } = {};
+    const result = await client.getSession({ fetchOptions: {
+      headers: { 'X-Force-Fetch': 'true' }, timeout: 10000,
+      async onResponse(context) {
+        // Neon replaces data.session.token with set-auth-jwt before onSuccess.
+        // Capture only the opaque proof from this response's original JSON while
+        // preserving the SDK's normal JWT and native cookie renewal hooks.
+        raw.proof = null;
+        raw.token = undefined;
+        if (!context.response.ok) return;
+        try { raw.proof = backendSessionProof(await context.response.clone().json()); }
+        catch { /* Missing or unreadable raw proof must fail closed below. */ }
+        const token = context.response.headers.get('set-auth-jwt');
+        if (token && token.length <= 16384 && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) raw.token = token;
+      },
+    } });
+    unchanged();
+    check(result.error);
+    const user = result.data?.user;
+    const sessionToken = raw.proof?.sessionToken;
+    if (!user?.id || user.emailVerified !== true || !sessionToken || raw.proof?.accountId !== user.id
+      || (accountId && user.id !== accountId)
+      || (currentAuthAccountId && user.id !== currentAuthAccountId))
+      throw new Error('Sign in again to the same account, then try again.');
+    accountId = user.id;
+    const token = raw.token ?? await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Please try again.');
+    unchanged();
+    currentAuthAccountId = user.id;
+    return { accountId: user.id, sessionToken, token };
+  } finally { unsubscribe(); }
+}
+
+/** Deletion's ten-minute freshness requirement is enforced by the server. */
+export async function getAccountDeletionCredentials(expectedAccountId?: string) {
+  return getBackendCredentials(expectedAccountId);
 }
 
 /** Server deletion already invalidated every session; local cleanup cannot depend on sign-out succeeding. */

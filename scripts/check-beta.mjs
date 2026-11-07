@@ -4,8 +4,9 @@ import { fileURLToPath } from 'node:url';
 import { isIP } from 'node:net';
 
 const profiles = {
-  preview: { distribution: 'internal', environment: 'preview' },
-  testflight: { distribution: 'store', environment: 'preview' },
+  // Hosting keeps server credentials in preview; mobile builds use public-only production.
+  preview: { distribution: 'internal', environment: 'production' },
+  testflight: { distribution: 'store', environment: 'production' },
   production: { distribution: 'store', environment: 'production' },
 };
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);

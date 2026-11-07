@@ -4,7 +4,7 @@ The operator's policy is feedback retention for up to 12 months. `src/server/fee
 
 The authenticated feedback API runs this purge before each valid feedback insert. This is an additional safeguard, not a scheduler: an idle application has no requests to trigger cleanup. A regular, monitored maintenance job is necessary to enforce time-based retention independently of usage. Run it daily, monitor failures, and verify the oldest retained feedback timestamp. Add a safety margin before the maximum retention age if the operator requires a strict maximum despite scheduler delays.
 
-From a trusted runtime with Node 24 and the private production `DATABASE_URL` supplied as an environment secret:
+After the owner manually applies and verifies the reviewed [least-privilege SQL](DATA_LAYER_LEAST_PRIVILEGE.md), use Node 24 with `RETENTION_JOB_DATABASE_URL` containing only the `retention_job` connection. The script rejects owner credentials and never falls back to `DATABASE_URL`:
 
 ```bash
 pnpm exec node scripts/purge-retained-data.mjs
@@ -30,4 +30,4 @@ Existing-platform scheduler options, researched 6 November 2026:
 - **Neon `pg_cron`:** available for in-database cleanup, but requires compute configuration and a restart to enable it. It only runs while compute is active, so it does not enforce retention on a compute that remains scaled to zero. Do not disable scale to zero or restart production merely to enable it without reviewing the operational cost/impact. [Neon pg_cron documentation](https://neon.com/docs/extensions/pg_cron).
 - **Neon Function Triggers:** can wake at scale to zero, but the existing project's `aws-eu-west-2` region is outside the Functions availability list checked by the Neon skill. This task does not provision a replacement project or migrate the backend for scheduling.
 
-The checked-in GitHub Actions retention workflow must be on the default branch with its production database secret configured before it can run. Merely adding a workflow file does not activate or verify it. Production setup must record its first successful run and who monitors failures. This command does not purge provider SMTP/hosting logs or backups; those have separate provider retention settings.
+The checked-in GitHub Actions retention workflow must be on the default branch with the private `RETENTION_JOB_DATABASE_URL` repository secret configured before the revised job can run. Its previously observed scheduled run failed; this change does not claim a successful cleanup. Record a successful dry-run and the next scheduled execution, and assign failure monitoring. This command does not purge provider SMTP/hosting logs or backups; those have separate provider retention settings.

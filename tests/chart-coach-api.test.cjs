@@ -15,13 +15,13 @@ function load(file, imports = {}, globals = {}) {
 const types = load('src/lib/marketTypes.ts');
 const review = load('src/lib/chartReview.ts', { './marketTypes': types });
 const quota = load('src/server/chartCoachQuota.ts');
-const loadApi = (globals = {}, neon = () => { throw new Error('Unexpected database call'); }) => load('src/server/chartCoachApi.ts', {
-  '@neondatabase/serverless': { neon }, '../lib/chartReview': review,
+const loadApi = (globals = {}, database = () => { throw new Error('Unexpected database call'); }) => load('src/server/chartCoachApi.ts', {
+  './database': { runtimeDatabase: env => database(env.APP_RUNTIME_DATABASE_URL) }, '../lib/chartReview': review,
   './chartCoachQuota': quota,
   './authenticate': { HttpError, authenticate: async () => { throw new HttpError(401, 'UNAUTHORIZED', 'Sign in with a confirmed email to continue.'); } },
 }, globals);
 const { createChartCoachApi, activePremiumEntitlement } = loadApi();
-const env = { CHART_COACH_ENABLED: '1', GEMINI_API_KEY: 'private-gemini-test-key', GEMINI_MODEL: 'gemini-test', REVENUECAT_SECRET_KEY: 'private-billing-test-key', DATABASE_URL: 'postgres://private-test-database' };
+const env = { CHART_COACH_ENABLED: '1', GEMINI_API_KEY: 'private-gemini-test-key', GEMINI_MODEL: 'gemini-test', REVENUECAT_SECRET_KEY: 'private-billing-test-key', APP_RUNTIME_DATABASE_URL: 'synthetic-runtime-connection' };
 const accountId = '995ef17f-0245-4680-8d42-6a19facd67df';
 const input = { symbol: 'EUR/USD', timeframe: '1h', strategy: 'SMC', context: 'Unverified CPI notes.' };
 const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(24)]).toString('base64');
@@ -73,7 +73,7 @@ test('availability and methods expose no credentials and do not contact auth, bi
 });
 
 test('missing configuration or authentication never contacts providers or reserves quota', async () => {
-  for (const configured of [{}, { ...env, CHART_COACH_ENABLED: '0' }, { ...env, GEMINI_MODEL: 'bad/path' }, { ...env, GEMINI_API_KEY: '' }, { ...env, DATABASE_URL: '' }]) {
+  for (const configured of [{}, { ...env, CHART_COACH_ENABLED: '0' }, { ...env, GEMINI_MODEL: 'bad/path' }, { ...env, GEMINI_API_KEY: '' }, { ...env, APP_RUNTIME_DATABASE_URL: '' }, { ...env, APP_RUNTIME_DATABASE_URL: '', DATABASE_URL: 'unused-owner-connection' }]) {
     const h = fixture({ configured });
     const result = await h.call();
     assert.equal(result.result.status, 503);
@@ -145,7 +145,7 @@ test('the production reservation locks account and shared UTC-month counters bef
   const queries = [];
   let allowed = true;
   const h = fixture({ neon: database => {
-    assert.equal(database, env.DATABASE_URL);
+    assert.equal(database, env.APP_RUNTIME_DATABASE_URL);
     return async (parts, ...values) => {
       queries.push({ sql: parts.join('?'), values });
       assert.equal(h.aiCalls().length, allowed ? 0 : 1, 'Reservation must precede a new AI call');
@@ -155,7 +155,8 @@ test('the production reservation locks account and shared UTC-month counters bef
   assert.equal((await h.call(body({ userId: 'not-this-user' }))).result.status, 200);
   assert.match(queries[0].sql, /INSERT INTO public\.chart_review_usage/);
   assert.match(queries[0].sql, /WITH owner AS MATERIALIZED/);
-  assert.match(queries[0].sql, /FROM neon_auth\."user" WHERE id = \?::uuid FOR KEY SHARE/);
+  assert.match(queries[0].sql, /SELECT id FROM pipwise_app\.lock_active_account\(\?::uuid\)/);
+  assert.doesNotMatch(queries[0].sql, /neon_auth\./);
   assert.match(queries[0].sql, /FROM owner\s+UNION ALL SELECT owner\.id::text/);
   assert.match(queries[0].sql, /date_trunc\('month', now\(\) AT TIME ZONE 'UTC'\)/);
   assert.match(queries[0].sql, /ON CONFLICT \(user_id, month_start\) DO NOTHING/);
@@ -224,7 +225,7 @@ test('billing and AI timeouts carry bounded abort signals and return sanitized f
   }
 });
 
-const openaiEnv = { CHART_COACH_ENABLED: '1', CHART_COACH_PROVIDER: 'openai', OPENAI_API_KEY: 'private-openai-test-key', OPENAI_MODEL: 'owner-selected-vision-model', DATABASE_URL: env.DATABASE_URL };
+const openaiEnv = { CHART_COACH_ENABLED: '1', CHART_COACH_PROVIDER: 'openai', OPENAI_API_KEY: 'private-openai-test-key', OPENAI_MODEL: 'owner-selected-vision-model', APP_RUNTIME_DATABASE_URL: env.APP_RUNTIME_DATABASE_URL };
 const openaiOutput = text => ({ status: 'completed', output: [{ type: 'reasoning', summary: [], encrypted_content: 'never return internal reasoning' },
   { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: text ?? 'Visible chart details and conditional scenarios.' }] }] });
 

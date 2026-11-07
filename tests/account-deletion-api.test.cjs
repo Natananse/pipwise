@@ -19,14 +19,15 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/server/accountDeletio
   process: { env: {} },
   require(name) {
     if (name === './authenticate') return { HttpError, authenticate: async () => { throw new HttpError(401, 'UNAUTHORIZED', 'Sign in.'); } };
-    assert.equal(name, '@neondatabase/serverless');
-    return { neon(connection) {
+    assert.equal(name, './database');
+    return { runtimeDatabase(env) {
+      const connection = env.APP_RUNTIME_DATABASE_URL;
       const sql = (parts, ...parameters) => ({ connection, query: parts.join('?'), parameters });
       sql.transaction = async (queries, options) => {
         const statements = queries(sql);
         calls.push({ statements, options });
         if (databaseFailure) throw databaseFailure;
-        return [[], databaseResult];
+        return [databaseResult];
       };
       return sql;
     } };
@@ -100,38 +101,32 @@ test('trusted web origins get bounded preflight support; foreign origins cannot 
   assert.match(preflight.headers.get('access-control-allow-headers'), /X-Pipwise-Session/);
 });
 
-test('database deletion locks the identity before taking a fresh READ COMMITTED deletion snapshot', async () => {
+test('database deletion delegates only to the restricted helper under READ COMMITTED', async () => {
   calls.length = 0;
   databaseFailure = undefined;
   databaseResult = [{ deleted: true }];
-  assert.equal(await deleteAccountData(accountId, sessionToken, { DATABASE_URL: 'private-test-connection' }), true);
+  const env = { APP_RUNTIME_DATABASE_URL: 'synthetic-runtime-connection', DATABASE_URL: 'unused-owner-connection' };
+  assert.equal(await deleteAccountData(accountId, sessionToken, env), true);
   assert.equal(calls.length, 1);
   const transaction = calls[0];
   assert.equal(transaction.options.isolationLevel, 'ReadCommitted');
-  assert.equal(transaction.statements.length, 2);
-  assert.match(transaction.statements[0].query, /SELECT id FROM neon_auth\."user" WHERE id = \?::uuid FOR UPDATE/);
-  assert.deepEqual(transaction.statements[0].parameters, [accountId]);
-  const call = transaction.statements[1];
+  assert.equal(transaction.statements.length, 1);
+  const call = transaction.statements[0];
+  assert.equal(call.connection, env.APP_RUNTIME_DATABASE_URL);
+  assert.match(call.query, /SELECT pipwise_app\.delete_account\(\?::uuid, \?\) AS deleted/);
   assert.deepEqual(call.parameters, [accountId, sessionToken]);
   assert.ok(!call.query.includes(accountId));
   assert.ok(!call.query.includes(sessionToken));
-  assert.match(call.query, /FOR UPDATE OF account/);
-  assert.match(call.query, /session\.token = \?/);
-  assert.match(call.query, /"createdAt" >= now\(\) - interval '10 minutes'/);
-  assert.match(call.query, /"expiresAt" > now\(\)/);
-  assert.match(call.query, /"impersonatedBy" IS NULL/);
-  assert.match(call.query, /DELETE FROM public\.chart_review_usage/);
-  assert.match(call.query, /DELETE FROM neon_auth\.verification/);
-  assert.match(call.query, /DELETE FROM neon_auth\."user"/);
-  assert.match(call.query, /SELECT count\(\*\) FROM removed_quota/);
-  assert.match(call.query, /SELECT count\(\*\) FROM removed_verification/);
-  assert.equal(await deleteAccountData(accountId, sessionToken, { DATABASE_URL: 'private-test-connection' }), true);
-  databaseResult = [{ deleted: false }];
-  assert.equal(await deleteAccountData(accountId, sessionToken, { DATABASE_URL: 'private-test-connection' }), false);
+  assert.doesNotMatch(call.query, /neon_auth\.|DELETE FROM|FOR UPDATE/);
+  for (const result of [[], [{ deleted: false }], [{ deleted: 'true' }], [{ deleted: null }]]) {
+    databaseResult = result;
+    assert.equal(await deleteAccountData(accountId, sessionToken, env), false);
+  }
 });
 
 test('unavailable credentials and database errors are safe and never report successful deletion', async () => {
   await assert.rejects(deleteAccountData(accountId, sessionToken, {}), error => error.code === 'DATABASE_NOT_CONFIGURED');
+  await assert.rejects(deleteAccountData(accountId, sessionToken, { DATABASE_URL: 'unused-owner-connection' }), error => error.code === 'DATABASE_NOT_CONFIGURED');
   const failure = await accountDeletionApi(request(), {
     ...signedIn, remove: async () => { throw new Error('postgres://private-password@db.example.test'); },
   });

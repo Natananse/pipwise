@@ -2,25 +2,22 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { databaseConnectionString, DatabaseConfigError, safeDatabaseErrorCode } from './database-config.mjs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const migrationDirectory = resolve(projectRoot, 'neon/migrations');
 class MigrationSetupError extends Error {}
 
-/** Never fall back to the pooled application URL for schema changes. */
+/** Schema changes require the dedicated direct migrator credential. */
 export function migrationConnectionString(env = process.env) {
-  const value = env.DATABASE_URL_UNPOOLED?.trim();
-  if (!value) throw new MigrationSetupError('Set DATABASE_URL_UNPOOLED with neon env pull before running migrations.');
-  let url;
-  try { url = new URL(value); }
-  catch { throw new MigrationSetupError('DATABASE_URL_UNPOOLED must be a valid Postgres connection URL.'); }
-  if (!['postgres:', 'postgresql:'].includes(url.protocol) || !url.hostname || !url.pathname.slice(1)) {
-    throw new MigrationSetupError('DATABASE_URL_UNPOOLED must be a valid Postgres connection URL.');
-  }
-  if (url.hostname.includes('-pooler')) {
-    throw new MigrationSetupError('DATABASE_URL_UNPOOLED must use a direct host without -pooler.');
-  }
-  return value;
+  return databaseConnectionString(env, { variable: 'MIGRATOR_DATABASE_URL', role: 'migrator', direct: true });
+}
+
+export function migrationFailureMessage(error) {
+  const code = safeDatabaseErrorCode(error);
+  const detail = error instanceof MigrationSetupError || error instanceof DatabaseConfigError ? ` ${error.message}`
+    : code ? ` Database error ${code}.` : '';
+  return `FAIL: Neon migrations were not committed.${detail}`;
 }
 
 export function readMigrations(directory = migrationDirectory) {
@@ -41,25 +38,12 @@ export async function runMigrations(client, { directory = migrationDirectory } =
   try {
     await client.query("SET LOCAL lock_timeout = '10s'");
     await client.query('SELECT pg_advisory_xact_lock(769680, 1)');
-    await client.query(`
-      CREATE SCHEMA IF NOT EXISTS pipwise_migrations;
-      REVOKE ALL ON SCHEMA pipwise_migrations FROM PUBLIC;
-      CREATE TABLE IF NOT EXISTS pipwise_migrations.schema_migrations (
-        name text PRIMARY KEY,
-        checksum text NOT NULL,
-        applied_at timestamptz NOT NULL DEFAULT now()
-      );
-      REVOKE ALL ON TABLE pipwise_migrations.schema_migrations FROM PUBLIC;
-      DO $private_ledger$
-      DECLARE client_role text;
-      BEGIN
-        FOR client_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anonymous', 'authenticated') LOOP
-          EXECUTE format('REVOKE ALL ON SCHEMA pipwise_migrations FROM %I', client_role);
-          EXECUTE format('REVOKE ALL ON TABLE pipwise_migrations.schema_migrations FROM %I', client_role);
-        END LOOP;
-      END;
-      $private_ledger$;
-    `);
+    const existing = await client.query("SELECT to_regclass('pipwise_migrations.schema_migrations') AS ledger");
+    // The existing ledger stays owned by its administrator. The migrator only
+    // needs USAGE plus SELECT/INSERT and must not issue owner-only revocations.
+    if (!existing.rows[0]?.ledger) {
+      throw new MigrationSetupError('The migration ledger must be provisioned by the database administrator before running migrations.');
+    }
     const { rows } = await client.query('SELECT name, checksum FROM pipwise_migrations.schema_migrations ORDER BY name');
     const previous = new Map(rows.map(row => [row.name, row.checksum]));
     if (rows.some(row => !migrations.some(migration => migration.name === row.name))) {
@@ -120,9 +104,7 @@ async function main(args) {
   } catch (error) {
     // Driver errors can include SQL, row values, and connection details. Do not
     // print arbitrary error messages, URLs, environment values, or query text.
-    const detail = error instanceof MigrationSetupError ? ` ${error.message}`
-      : typeof error?.code === 'string' && /^[0-9A-Z]{5}$/.test(error.code) ? ` Database error ${error.code}.` : '';
-    console.error(`FAIL: Neon migrations were not committed.${detail}`);
+    console.error(migrationFailureMessage(error));
     process.exitCode = 1;
   } finally {
     await client?.end().catch(() => {});

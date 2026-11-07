@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless';
+import { runtimeDatabase } from './database';
 import { feedbackAlreadyDelivered, feedbackPayload, type FeedbackCategory, type FeedbackPayload } from '../lib/feedback';
 import { authenticate, HttpError } from './authenticate';
 import { purgeExpiredFeedback } from './feedbackRetention';
@@ -12,9 +12,9 @@ const fields = ['user_id', 'client_report_id', 'rating', 'category', 'message', 
 const invalidFeedback = () => new HttpError(400, 'INVALID_FEEDBACK', 'Enter a valid rating, category and review.');
 
 async function save(payload: FeedbackPayload): Promise<void> {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.APP_RUNTIME_DATABASE_URL;
   if (!url) throw new HttpError(503, 'DATABASE_NOT_CONFIGURED', 'Feedback is temporarily unavailable.');
-  const sql = neon(url);
+  const sql = runtimeDatabase();
   await purgeExpiredFeedback(sql);
   // An authenticated server owns this insert. No review data is returned to clients.
   await sql`

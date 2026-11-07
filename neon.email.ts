@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import { defineConfig } from '@neon/config/v1';
+import { runtimeConnectionString } from './src/server/database';
 
 function requiredEnv(name: string, value: string | undefined): string {
   if (!value?.trim()) throw new Error(`Missing relay configuration: ${name}`);
@@ -27,7 +28,10 @@ export default defineConfig({
         PIPWISE_AUTH_EMAIL_RELAY_SECRET: requiredEnv('PIPWISE_AUTH_EMAIL_RELAY_SECRET', process.env.PIPWISE_AUTH_EMAIL_RELAY_SECRET),
         PIPWISE_ORIGIN_AUTH_BASE_URL: requiredEnv('PIPWISE_ORIGIN_AUTH_BASE_URL', process.env.PIPWISE_ORIGIN_AUTH_BASE_URL),
         PIPWISE_ORIGIN_AUTH_JWKS_URL: requiredEnv('PIPWISE_ORIGIN_AUTH_JWKS_URL', process.env.PIPWISE_ORIGIN_AUTH_JWKS_URL),
-        PIPWISE_AUTH_DATABASE_URL: requiredEnv('PIPWISE_AUTH_DATABASE_URL', process.env.PIPWISE_AUTH_DATABASE_URL),
+        // The relay uses the same restricted role as the hosted app API.
+        APP_RUNTIME_DATABASE_URL: runtimeConnectionString({
+          APP_RUNTIME_DATABASE_URL: requiredEnv('APP_RUNTIME_DATABASE_URL', process.env.APP_RUNTIME_DATABASE_URL),
+        }),
         PIPWISE_SMTP_USER: requiredEnv('PIPWISE_SMTP_USER', process.env.PIPWISE_SMTP_USER),
         PIPWISE_SMTP_APP_PASSWORD: requiredEnv('PIPWISE_SMTP_APP_PASSWORD', process.env.PIPWISE_SMTP_APP_PASSWORD),
       },

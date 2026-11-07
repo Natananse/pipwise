@@ -4,6 +4,8 @@ The current release target is **Android only**. Android testers receive a standa
 
 These builds contain the JavaScript bundle and run without your computer, Metro, or port 8081. Development onboarding previews are disabled in both release profiles.
 
+Complete [the manual least-privilege rollout](DATA_LAYER_LEAST_PRIVILEGE.md) before deploying this source. All mobile profiles use the public-only EAS `production` environment; hosted server credentials stay in `preview`. Existing APK build 5 lacks the new live-session header and must be rebuilt after the matching backend/database setup.
+
 Browser beta: **https://pipwise--beta.expo.app**. Local source changes do not update this website or an existing APK. Deploy the web export and create new native builds when preparing a release.
 
 The 2026-11-05 beta deployment includes the free Chart coach workflow and authenticated feedback API. Android preview **1.0.0, version code 4** also finished successfully: [install/build page](https://expo.dev/accounts/natananse/projects/pipwise/builds/5386bc64-e718-49a3-aec5-bb451b1c838c). Automatic AI is explicitly disabled in the preview hosting environment. Physical-device signup, file-picker and trade gesture checks remain to be performed.
@@ -30,8 +32,8 @@ The application uses **Neon Managed Better Auth**, not the legacy Supabase auth 
 2. Configure custom SMTP for production. Neon's shared sender is for development/testing; verification codes and password resets work with shared or custom SMTP. Verify delivery to real tester inboxes and check spam folders. Consider revoking existing sessions when a password is reset.
 3. Add the hosted application origin to Neon's trusted domains: `https://pipwise--beta.expo.app`. Register a separate production origin when using one. Register only origins you control.
 4. Configure `EXPO_PUBLIC_NEON_AUTH_URL` with its `/auth` service path. `neon env pull` supplies private branch variables; `node scripts/sync-neon-env.mjs` creates the public Auth alias. Set `EXPO_PUBLIC_APP_API_URL` to the deployed application origin, or use the origin of `EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL`. A Neon Data API is not needed.
-5. Apply all current `neon/migrations/*.sql` through `pnpm db:migrate` using the intended branch's private direct connection. The runner records applied migrations; do not rerun raw create-table SQL over an existing table. The feedback, account-details and chart-review quota tables remain private.
-6. Deploy the server routes with sensitive `DATABASE_URL`, `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL` variables. `POST /api/feedback` verifies the signed-in, verified-email JWT and matching report owner before inserting a review. Duplicate retries are idempotent. Clients cannot read or change submitted reviews. Read `public.beta_feedback` through the owner's database tools. Demo users can copy/share a report themselves.
+5. Have the owner manually review and run `neon/security/` SQL in the Neon SQL Editor on a test branch first, following the linked guide. Existing migrations `001`–`004` are unchanged. Future `pnpm db:migrate` runs use direct `MIGRATOR_DATABASE_URL`; the existing ledger must already be provisioned, and DDL on existing tables still requires their unchanged owner. Do not rerun raw create-table SQL over existing tables.
+6. Deploy the matching server routes with sensitive `APP_RUNTIME_DATABASE_URL`, `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL` variables. `POST /api/feedback` verifies the signed-in JWT, a matching unexpired session, and report owner before inserting a review. Duplicate retries are idempotent. Clients cannot read or change submitted reviews. Read `public.beta_feedback` through the owner's database tools. Demo users can copy/share a report themselves.
 
 The app requests password recovery codes and lets the user enter a new password. It does not reuse Supabase access-token fragments or PKCE links for Neon accounts. Practice data remains local to the device after signup.
 
@@ -97,12 +99,12 @@ Only then enable provider flags in a test build. Test successful sign-in, cancel
 
 ## 4. Supply public configuration to cloud builds
 
-Local `.env` is ignored during cloud upload. Set these values individually in the Expo project's **preview** environment for Android preview and TestFlight, and in **production** for store builds:
+Local `.env` is ignored during cloud upload. All mobile profiles now use the Expo project's public-only **production** environment, including Android preview and TestFlight. Keep backend secrets in the separate hosting **preview** environment:
 
 | Variable | Value |
 | --- | --- |
 | `EXPO_PUBLIC_NEON_AUTH_URL` | Branch public HTTPS Auth URL including `/auth` path |
-| `EXPO_PUBLIC_APP_API_URL` | Public HTTPS application backend origin; optional when using the native-auth return URL's origin |
+| `EXPO_PUBLIC_APP_API_URL` | Required public HTTPS application backend origin |
 | `EXPO_PUBLIC_GOOGLE_AUTH_ENABLED` | `0` until configured; `1` enables Google |
 | `EXPO_PUBLIC_APPLE_AUTH_ENABLED` | Keep `0` for Android-only release; configure before enabling for future iOS |
 | `EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL` | Deployed HTTPS `/native-auth.html` page |
@@ -110,14 +112,14 @@ Local `.env` is ignored during cloud upload. Set these values individually in th
 Use Expo's Environment variables dashboard or individual EAS commands. For example, after replacing the public URL placeholder:
 
 ```bash
-pnpm dlx eas-cli@latest env:set --environment preview --name EXPO_PUBLIC_NEON_AUTH_URL --value "<public-branch-auth-url>" --visibility plaintext
-pnpm dlx eas-cli@latest env:set --environment preview --name EXPO_PUBLIC_GOOGLE_AUTH_ENABLED --value "0" --visibility plaintext
-pnpm dlx eas-cli@latest env:set --environment preview --name EXPO_PUBLIC_APPLE_AUTH_ENABLED --value "0" --visibility plaintext
-pnpm dlx eas-cli@latest env:set --environment preview --name EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL --value "https://pipwise--beta.expo.app/native-auth.html" --visibility plaintext
+pnpm dlx eas-cli@latest env:set --environment production --name EXPO_PUBLIC_NEON_AUTH_URL --value "<public-branch-auth-url>" --visibility plaintext
+pnpm dlx eas-cli@latest env:set --environment production --name EXPO_PUBLIC_GOOGLE_AUTH_ENABLED --value "0" --visibility plaintext
+pnpm dlx eas-cli@latest env:set --environment production --name EXPO_PUBLIC_APPLE_AUTH_ENABLED --value "0" --visibility plaintext
+pnpm dlx eas-cli@latest env:set --environment production --name EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL --value "https://pipwise--beta.expo.app/native-auth.html" --visibility plaintext
 pnpm beta:check
 ```
 
-Repeat for the application API origin and the production environment as applicable. Set the same public values locally to test the matching configuration. Enable the provider flags only after completing the setup above.
+Repeat for the application API origin. Keep the same public configuration available to the hosted browser export and local testing, without copying server secrets into the mobile environment. Enable the provider flags only after completing the setup above.
 
 **Do not upload the whole `.env` file.** It contains private database credentials from Neon. Only the listed public settings and optional public RevenueCat platform keys belong in the client build environment. OAuth client secrets, Apple keys, database URLs, and SMTP credentials stay server-side.
 

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { getAuthSession, getAuthToken, subscribeAuth, type AuthSession } from './neonAuth';
+import { getAuthSession, getBackendCredentials, subscribeAuth, type AuthSession } from './neonAuth';
 import { normalizeRegistrationDetails, type RegistrationDetails } from './registrationDetails';
 import { loadSecureStore } from './secureStorage';
 import { createPersistenceQueue } from './persistence';
@@ -36,14 +36,14 @@ async function requestDetails(method: 'GET' | 'PUT', details?: AccountDetails, e
     if (!session || (expectedAccountId && session.user.id !== expectedAccountId)) throw new Error('Your account changed. Sign in again to save your details.');
     accountId = session.user.id;
     if (changed) throw new Error('Your account changed. Please try again.');
-    const token = await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Please try again.', 10000);
+    const credentials = await withStartupTimeout(getBackendCredentials(accountId), 'Connecting your account took too long. Please try again.', 10000);
     if (changed) throw new Error('Your account changed. Please try again.');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 12000);
     try {
       const response = await fetch(url, {
         method, signal: controller.signal,
-        headers: { Accept: 'application/json', Authorization: `Bearer ${token}`, ...(method === 'PUT' ? { 'Content-Type': 'application/json' } : {}) },
+        headers: { Accept: 'application/json', Authorization: `Bearer ${credentials.token}`, 'X-Pipwise-Session': credentials.sessionToken, ...(method === 'PUT' ? { 'Content-Type': 'application/json' } : {}) },
         ...(method === 'PUT' ? { body: JSON.stringify(details) } : {}),
       });
       if (changed) throw new Error('Your account changed. Please try again.');

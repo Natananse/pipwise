@@ -1,6 +1,18 @@
 # PipWise release implementation report — 6 November 2026
 
-## Implemented
+## 7 November 2026: database hardening prepared, not applied
+
+The next source release separates hosted API/email connections (`APP_RUNTIME_DATABASE_URL` / `app_runtime`), local direct migrations (`MIGRATOR_DATABASE_URL` / `migrator`), and retention (`RETENTION_JOB_DATABASE_URL` / `retention_job`). Reviewed manual SQL creates scoped roles and helper functions and adds table grants/RLS policies while preserving **every existing table/schema owner, table name, schema location, column, and user row**. It does not move tables into the new helper namespace. The migrator owns only the new helper namespace/functions and future objects there; future DDL on existing owner-managed tables requires manual owner SQL.
+
+**No SQL was executed, no scoped role passwords or secrets were configured, and no new backend/APK was deployed by this source change. SQL integration, RLS/grant behavior, helper/concurrency behavior, and metadata rollback are untested against Neon.** Follow [DATA_LAYER_LEAST_PRIVILEGE.md](DATA_LAYER_LEAST_PRIVILEGE.md), test the supplied rollback on an isolated branch, and apply the approved SQL manually before deploying the matching backend. Existing migrations `001`–`004` remain unchanged; there is no automatic security migration `005`.
+
+The strengthened protected API requires both a verified JWT and the matching current `X-Pipwise-Session` proof. Deploy its matching browser client and build/install a **new APK/AAB**; an old native build sending only a JWT cannot satisfy the new backend. Repeat sign-in, feedback, account-details, deletion and real-device release checks after cutover. The November 6 verification/deployment evidence below describes the prior baseline and does not establish the new role-separated implementation is deployed or production-ready.
+
+All mobile build profiles (`preview`, `testflight`, `production`) now select the public-only EAS **production** environment in local `eas.json`. The hosted backend keeps its separate private **preview** environment and needs `APP_RUNTIME_DATABASE_URL`; the email relay needs the same scoped runtime login, the GitHub job uses `RETENTION_JOB_DATABASE_URL`, and `MIGRATOR_DATABASE_URL` stays local. Broad legacy owner-connection variables are not fallbacks in the new implementation. No remote environment was changed: privately inspect/remove database/email/relay/model secrets from the mobile build environment before building, and complete the coordinated scoped-server rollout first.
+
+Current source checks pass: `pnpm lint`, `pnpm typecheck`, and `node --test tests/*.test.cjs` (57 files). Direct execution also verified all **439 declared tests**, with database/provider credentials removed from the test process environment. Installed-SDK tests replace networking entirely and cover Neon replacing a returned session token with a JWT: the client now captures the original opaque proof from the same response and avoids the SDK's shared token/session cache. These are local source/SDK tests, not evidence of live role grants, account deletion, SQL execution, or a deployed release.
+
+## 6 November baseline implemented
 
 - **Account deletion:** Settings has a Delete account button below Sign out, permanent-data confirmation and password/Google reauthentication when needed. `src/app/api/delete-account+api.ts` calls the server-only `accountDeletionApi.ts`. The endpoint accepts no caller-selected user ID and requires a verified JWT plus a matching, unexpired, non-impersonated session created within ten minutes. It locks the actual Neon identity and deletes account/profile/feedback/review usage/known verification records in a READ COMMITTED transaction; auth sessions and provider accounts cascade. The active identity is Neon; Supabase files are legacy and no Supabase service key was added.
 - **Local deletion:** after confirmed server success, encrypted sign-in and registration state and app-owned local records are cleared; native providers reset and navigation returns to onboarding. Old queued writes are paused and drained so deleted practice data cannot be saved again. Cleanup/reset is deduplicated across UI timeouts; account switching preserves the new identity, stale Auth responses are rejected, and route changes do not prematurely resume writes. Local-clear failure offers retry without resubmitting the destructive request. Other-device local records and separately shared files remain under the user's control.
@@ -12,7 +24,7 @@
 - **Build config:** `io.pipwise.app`, PipWise, version `1.0.0`; app.json records versionCode `4`, while EAS remote versioning plus autoIncrement controls the actual next build code. Preview produces an internal standalone **APK**; production produces a store **AAB**. Existing iOS testflight support is retained. Icon/adaptive foreground/splash reference real assets; splash uses the configured plugin. Unused broad-storage, overlay and biometric permissions are blocked; Internet and vibration remain used. Inspect final release artifact/launcher masks on device.
 - **Cleanup:** no console calls remain in src. Fictional leaderboard results, illustrative subscription prices, planned-benefit placeholders, disconnected reminder controls, fake referral milestones and fallback chart dates were removed. Input hints and clearly labelled educational simulations remain intentional features.
 
-## Verified
+## 6 November baseline verified
 
 - `pnpm lint` — pass.
 - `pnpm typecheck` — pass.
@@ -112,7 +124,7 @@ For new personal accounts created after November 13, 2023, confirm the productio
 
 ## Remaining operational actions
 
-1. Activate and monitor the nightly retention workflow: add private repository secret DATABASE_URL, enable Actions and place the reviewed workflow on main. It is prepared, **not running**. See [RETENTION_SCHEDULER_SETUP.md](RETENTION_SCHEDULER_SETUP.md) and [FEEDBACK_RETENTION.md](FEEDBACK_RETENTION.md).
+1. Complete the manual least-privilege SQL rollout and private role setup, then activate and monitor the nightly retention workflow with **`RETENTION_JOB_DATABASE_URL`** authenticated as `retention_job`. Enable Actions and place reviewed source on main. Activation/success is unverified; a prepared file is not a running job. See [DATA_LAYER_LEAST_PRIVILEGE.md](DATA_LAYER_LEAST_PRIVILEGE.md), [RETENTION_SCHEDULER_SETUP.md](RETENTION_SCHEDULER_SETUP.md), and [FEEDBACK_RETENTION.md](FEEDBACK_RETENTION.md).
 2. Verify provider backup/security-log retention and Data safety vendor classifications; the policy does not promise immediate removal of every infrastructure backup.
 3. Build/install the new APK; verify signup/email/reset/Google return, privacy/deletion, local persistence, offline behavior, file picking, charts/gestures and Android lifecycle. Check the final AAB permissions, target API/16 KB compatibility, signing and version code.
 4. Complete Play Console assets/declarations, account verification and any required closed test. No developer-name/contact/retention placeholders remain in the policy.

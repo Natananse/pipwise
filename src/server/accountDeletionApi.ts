@@ -1,5 +1,5 @@
 // Server-only: this module must never be imported by a screen or native client.
-import { neon } from '@neondatabase/serverless';
+import { runtimeDatabase } from './database';
 import { authenticate, HttpError } from './authenticate';
 
 type Dependencies = {
@@ -12,61 +12,20 @@ const maximumBodyBytes = 512;
 const reauthenticate = () => new HttpError(401, 'REAUTHENTICATION_REQUIRED', 'Sign in again, then confirm account deletion within 10 minutes.');
 
 /**
- * Auth identity is the database source of truth in Managed Better Auth. The
- * installed schema's account/session/profile/feedback FKs cascade on user delete.
- * A Postgres transaction either removes all rows or rolls everything back.
- * A JWT alone is insufficient: the current user's fresh session must also match.
+ * The restricted database helper checks a fresh matching session, locks the
+ * identity and removes its associated data atomically. Runtime has no direct
+ * access to managed Auth tables. The helper owns its internal locking order.
  */
 export async function deleteAccountData(userId: string, sessionToken: string, env: Record<string, string | undefined> = process.env): Promise<boolean> {
-  const connection = env.DATABASE_URL;
+  const connection = env.APP_RUNTIME_DATABASE_URL;
   if (!connection) throw new HttpError(503, 'DATABASE_NOT_CONFIGURED', 'Account deletion is temporarily unavailable.');
-  const sql = neon(connection);
-  // Acquire the identity lock in a separate statement. Under READ COMMITTED the
-  // following statement sees quota rows committed while this lock was waiting.
-  // A single CTE snapshot would miss those rows and could leave an orphan.
+  const sql = runtimeDatabase(env);
+  // The VOLATILE helper takes the identity lock in a separate internal command
+  // before its deletion snapshot. Keep READ COMMITTED explicit for that contract.
   const results = await sql.transaction(transaction => [
-    transaction`SELECT id FROM neon_auth."user" WHERE id = ${userId}::uuid FOR UPDATE`,
-    transaction`
-    WITH authorized AS MATERIALIZED (
-      SELECT account.id, account.email
-      FROM neon_auth."user" AS account
-      WHERE account.id = ${userId}::uuid
-        AND account."emailVerified" = true
-        AND COALESCE(account.banned, false) = false
-        AND EXISTS (
-          SELECT 1 FROM neon_auth.session AS session
-          WHERE session."userId" = account.id AND session.token = ${sessionToken}
-            AND session."expiresAt" > now()
-            AND session."createdAt" >= now() - interval '10 minutes'
-            AND session."createdAt" <= now() + interval '30 seconds'
-            AND session."impersonatedBy" IS NULL
-        )
-      FOR UPDATE OF account
-    ), removed_quota AS (
-      DELETE FROM public.chart_review_usage AS usage USING authorized
-      WHERE usage.user_id = authorized.id::text RETURNING usage.user_id
-    ), removed_verification AS (
-      DELETE FROM neon_auth.verification AS verification USING authorized
-      WHERE verification.identifier IN (
-          authorized.email,
-          'email-verification-otp-' || lower(authorized.email),
-          'sign-in-otp-' || lower(authorized.email),
-          'forget-password-otp-' || lower(authorized.email)
-        )
-        OR starts_with(verification.identifier, 'change-email-otp-' || lower(authorized.email) || '-')
-        OR (starts_with(verification.identifier, 'reset-password:') AND verification.value = authorized.id::text)
-      RETURNING verification.id
-    ), removed_user AS (
-      DELETE FROM neon_auth."user" AS account USING authorized
-      WHERE account.id = authorized.id
-        AND (SELECT count(*) FROM removed_quota) >= 0
-        AND (SELECT count(*) FROM removed_verification) >= 0
-      RETURNING account.id
-    )
-    SELECT EXISTS (SELECT 1 FROM removed_user) AS deleted
-    `,
+    transaction`SELECT pipwise_app.delete_account(${userId}::uuid, ${sessionToken}) AS deleted`,
   ], { isolationLevel: 'ReadCommitted' });
-  return results[1]?.[0]?.deleted === true;
+  return results[0]?.[0]?.deleted === true;
 }
 
 function allowedOrigin(request: Request, env: Record<string, string | undefined>): string | null {

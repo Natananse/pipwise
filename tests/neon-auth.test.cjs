@@ -538,3 +538,72 @@ test('a corrupt native saved credential falls back to a fresh session read', asy
   h.hooks().onRequest(request);
   assert.equal(request.headers.get('Cookie'), null);
 });
+
+test('backend credentials pair the verified account session with its JWT without exposing proof in profile state', async () => {
+  for (const platform of ['web', 'android']) {
+    const h = harness({ platform });
+    const sessionToken = 'SESSION_PROOF_PLACEHOLDER';
+    h.client.getSession = async options => {
+      await options?.fetchOptions?.onResponse?.({ response: Response.json({ user, session: { token: sessionToken } }) });
+      return { data: { user, session: { token: 'SDK_REPLACED_JWT_PLACEHOLDER' } }, error: null };
+    };
+    h.client.token = async () => ({ data: { token: 'JWT_PLACEHOLDER' }, error: null });
+    const credentials = await h.api.getBackendCredentials(user.id);
+    assert.deepEqual(JSON.parse(JSON.stringify(credentials)), {
+      accountId: user.id, sessionToken, token: 'JWT_PLACEHOLDER',
+    });
+    assert(!JSON.stringify(await h.api.getAuthSession()).includes(sessionToken));
+  }
+});
+
+test('backend proof rejects missing, malformed or mismatched sessions before requesting a JWT', async () => {
+  for (const sessionToken of [undefined, '', 'with whitespace', 'x'.repeat(2049), 'a.b.c']) {
+    const h = harness(); let tokenRequests = 0;
+    h.client.getSession = async options => {
+      await options.fetchOptions.onResponse({ response: Response.json({ user, session: { token: sessionToken } }) });
+      return { data: { user, session: { token: 'SDK_REPLACED_JWT_PLACEHOLDER' } }, error: null };
+    };
+    h.client.token = async () => { tokenRequests++; return { data: { token: 'JWT_PLACEHOLDER' } }; };
+    await assert.rejects(h.api.getBackendCredentials(user.id), /Sign in again/);
+    assert.equal(tokenRequests, 0);
+  }
+  const h = harness();
+  h.client.getSession = async options => {
+    await options.fetchOptions.onResponse({ response: Response.json({ user, session: { token: 'SESSION_PROOF_PLACEHOLDER' } }) });
+    return { data: { user, session: { token: 'SDK_REPLACED_JWT_PLACEHOLDER' } }, error: null };
+  };
+  await assert.rejects(h.api.getBackendCredentials('different-account'), /Sign in again/);
+});
+
+test('backend credentials reject an unreadable, unverified or differently owned raw response without trusting the SDK token', async () => {
+  const validBody = { user, session: { token: 'SESSION_PROOF_PLACEHOLDER' } };
+  for (const raw of [null, [], {}, { ...validBody, user: { ...user, id: 'another-account' } },
+    { ...validBody, user: { ...user, emailVerified: false } }, 'malformed-json']) {
+    const h = harness(); let tokenRequests = 0;
+    h.client.getSession = async options => {
+      const response = raw === 'malformed-json' ? new Response('{broken') : Response.json(raw);
+      await options.fetchOptions.onResponse({ response });
+      return { data: validBody, error: null };
+    };
+    h.client.token = async () => { tokenRequests++; return { data: { token: 'JWT_PLACEHOLDER' } }; };
+    await assert.rejects(h.api.getBackendCredentials(user.id), /Sign in again/);
+    assert.equal(tokenRequests, 0);
+  }
+  const h = harness();
+  h.client.getSession = async () => ({ data: validBody, error: null });
+  await assert.rejects(h.api.getBackendCredentials(user.id), /Sign in again/);
+});
+
+test('sign-out during backend credential acquisition invalidates the pending proof', async () => {
+  const h = harness(); let releaseToken;
+  h.client.getSession = async options => {
+    await options.fetchOptions.onResponse({ response: Response.json({ user, session: { token: 'SESSION_PROOF_PLACEHOLDER' } }) });
+    return { data: { user, session: { token: 'SDK_REPLACED_JWT_PLACEHOLDER' } }, error: null };
+  };
+  h.client.token = () => new Promise(resolve => { releaseToken = resolve; });
+  const pending = h.api.getBackendCredentials(user.id);
+  await new Promise(resolve => setImmediate(resolve));
+  await h.api.signOut();
+  releaseToken({ data: { token: 'JWT_PLACEHOLDER' }, error: null });
+  await assert.rejects(pending, error => error.code === 'AUTH_SESSION_CHANGED');
+});

@@ -20,7 +20,7 @@ const retention = load('src/server/feedbackRetention.ts');
 class HttpError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
 const authentication = { HttpError, authenticate: async () => { throw new HttpError(401, 'UNAUTHORIZED', 'Sign in.'); } };
 const imports = {
-  '@neondatabase/serverless': { neon: () => { throw new Error('Unexpected external database access'); } },
+  './database': { runtimeDatabase: () => { throw new Error('Unexpected external database access'); } },
   '../lib/feedback': feedback, './authenticate': authentication,
   './feedbackRetention': retention,
 };
@@ -154,15 +154,14 @@ test('database errors and missing server configuration expose no private details
 test('default storage uses parameterized explicit columns and requests no review rows', async () => {
   const queries = [];
   const { feedbackApi: api } = load('src/server/feedbackApi.ts', {
-    ...imports, '@neondatabase/serverless': { neon: url => {
-      assert.equal(url, 'postgres://private-test-connection');
+    ...imports, './database': { runtimeDatabase: () => {
       return async (strings, ...values) => {
         const query = strings.join('?');
         queries.push({ sql: query, values });
         return /WITH expired AS/.test(query) ? [{ removed: 0 }] : [];
       };
     } },
-  }, { DATABASE_URL: 'postgres://private-test-connection' });
+  }, { APP_RUNTIME_DATABASE_URL: 'synthetic-runtime-connection' });
   const message = "User text '); delete from public.beta_feedback; --";
   const response = await api(post({ ...payload, message }), authorized);
   assert.equal(response.status, 200);
@@ -173,6 +172,17 @@ test('default storage uses parameterized explicit columns and requests no review
   assert.doesNotMatch(queries[1].sql, /returning|select \*/i);
   assert.ok(!queries[1].sql.includes(message));
   assert.deepEqual(Array.from(queries[1].values), [owner, payload.client_report_id, 4, 'bug', message, '1.0.0', 'android', 'am']);
+});
+
+test('legacy owner-only configuration cannot connect while accepting feedback', async () => {
+  let factoryCalls = 0;
+  const { feedbackApi: api } = load('src/server/feedbackApi.ts', {
+    ...imports, './database': { runtimeDatabase() { factoryCalls++; throw new Error('Factory must not run'); } },
+  }, { DATABASE_URL: 'unused-owner-connection' });
+  const response = await api(post(), authorized);
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, 'DATABASE_NOT_CONFIGURED');
+  assert.equal(factoryCalls, 0);
 });
 
 test('Expo feedback route delegates the POST request without importing client configuration', async () => {

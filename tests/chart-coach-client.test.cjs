@@ -18,7 +18,11 @@ function harness({ platform = 'android', env = { EXPO_PUBLIC_NATIVE_AUTH_RETURN_
     'react-native': { Platform: { OS: platform } },
     './startupTasks': { withStartupTimeout: value => value },
     './neonAuth': {
-      getAuthSession: async () => session, getAuthToken: () => token(),
+      getAuthSession: async () => session,
+      getBackendCredentials: async expected => {
+        assert.equal(expected, session.user.id);
+        return { accountId: expected, token: await token(), sessionToken: 'SESSION_PROOF_PLACEHOLDER' };
+      },
       subscribeAuth: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     },
   };
@@ -42,6 +46,7 @@ test('photo requests bind to the initiating account and send consent and only im
     assert.deepEqual(JSON.parse(JSON.stringify(await h.call())), review);
     assert.equal(h.requests[0].url, platform === 'web' ? '/api/chart-coach' : 'https://pipwise.example/api/chart-coach');
     assert.equal(h.requests[0].options.headers.Authorization, 'Bearer signed-token');
+    assert.equal(h.requests[0].options.headers['X-Pipwise-Session'], 'SESSION_PROOF_PLACEHOLDER');
     assert.deepEqual(JSON.parse(h.requests[0].options.body), { input, image: { mimeType: upload.mimeType, base64: upload.base64 }, consent: true, provider: 'gemini' });
     assert.equal(h.listeners.size, 0);
   }

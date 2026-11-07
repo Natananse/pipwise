@@ -35,7 +35,11 @@ function harness({ platform = 'android', env = { EXPO_PUBLIC_NATIVE_AUTH_RETURN_
     './startupTasks': { withStartupTimeout: (value, _message, deadline) => { deadlines.push(deadline); return value; } },
     './neonAuth': {
       getAuthSession: options => { authReads.push(options); return authRead(); },
-      getAuthToken: () => { tokenReads.push(true); return token(); },
+      getBackendCredentials: async expected => {
+        assert.equal(expected, session.user.id);
+        tokenReads.push(true);
+        return { accountId: expected, token: await token(), sessionToken: 'SESSION_PROOF_PLACEHOLDER' };
+      },
       subscribeAuth: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     },
   };
@@ -70,6 +74,7 @@ test('same-account feedback uses the app API and requires an explicit delivery a
     assert.equal(h.requests[0].url, platform === 'web' ? '/api/feedback' : 'https://pipwise.example/api/feedback');
     assert.equal(h.requests[0].options.method, 'POST');
     assert.equal(h.requests[0].options.headers.Authorization, 'Bearer signed-account-token');
+    assert.equal(h.requests[0].options.headers['X-Pipwise-Session'], 'SESSION_PROOF_PLACEHOLDER');
     assert.equal(h.requests[0].options.headers['Content-Type'], 'application/json');
     assert.deepEqual(JSON.parse(h.requests[0].options.body), payload);
     assert.equal(h.authReads[0].timeout, 10000);
@@ -92,7 +97,7 @@ test('native feedback reads only public app origins, never private database or l
   assert.equal(h.api.feedbackConfigured, true);
   await h.call();
   assert.equal(h.requests[0].url, 'https://api.pipwise.example/api/feedback');
-  assert.deepEqual(Object.keys(h.requests[0].options.headers).sort(), ['Accept', 'Authorization', 'Content-Type']);
+  assert.deepEqual(Object.keys(h.requests[0].options.headers).sort(), ['Accept', 'Authorization', 'Content-Type', 'X-Pipwise-Session']);
   for (const url of [
     '', 'http://api.pipwise.example', 'https://user:private-password@api.pipwise.example',
     'https://api.pipwise.example?secret=private-token', 'https://api.pipwise.example#private-token', 'not-a-url',

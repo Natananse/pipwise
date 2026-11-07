@@ -2,7 +2,7 @@
 // Optional server-only relay. The app continues using its existing London Auth
 // and delivery ledger; a relay project's injected service credentials are ignored.
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { neon } from '@neondatabase/serverless';
+import { runtimeDatabase } from '../server/database';
 import { createAuthEmailDelivery } from '../server/authEmailDelivery';
 import { createGmailTransport } from '../server/authEmailTransport';
 import { createAuthEmailWebhook } from '../server/authEmailWebhook';
@@ -63,12 +63,11 @@ export default {
     }
     try {
       const env = emailEnv();
-      const databaseUrl = process.env.PIPWISE_AUTH_DATABASE_URL;
-      if (env.PIPWISE_AUTH_EMAIL_ENABLED !== '1' || !databaseUrl || !env.NEON_AUTH_BASE_URL || !env.NEON_AUTH_JWKS_URL) {
+      if (env.PIPWISE_AUTH_EMAIL_ENABLED !== '1' || !env.NEON_AUTH_BASE_URL || !env.NEON_AUTH_JWKS_URL) {
         return unavailable();
       }
       // A fresh delivery owner for each request protects the ledger's lease.
-      const delivery = createAuthEmailDelivery(neon(databaseUrl));
+      const delivery = createAuthEmailDelivery(runtimeDatabase(process.env));
       const transport = createGmailTransport(env);
       return await createAuthEmailWebhook({ env, ...delivery, send: transport.send })(originalWebhook(request));
     } catch { return unavailable(); }

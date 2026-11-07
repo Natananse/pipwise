@@ -13,12 +13,13 @@ function fixture(t, files = { '001_first.sql': 'CREATE TABLE first_example (id i
   return directory;
 }
 
-function databaseClient(rows = [], failure = null) {
+function databaseClient(rows = [], failure = null, { ledger = 'pipwise_migrations.schema_migrations' } = {}) {
   const calls = [];
   return {
     calls,
     query: async (text, values) => {
       calls.push({ text, values });
+      if (text.startsWith('SELECT to_regclass')) return { rows: [{ ledger }] };
       if (text.startsWith('SELECT name, checksum')) return { rows };
       if (failure && text === failure.sql) throw failure.error;
       return { rows: [] };
@@ -26,18 +27,39 @@ function databaseClient(rows = [], failure = null) {
   };
 }
 
-test('migrations require a direct URL and never fall back to the pooled application credential', async () => {
+test('migrations require the exact migrator role on a dedicated direct URL with no legacy fallback', async () => {
   const { migrationConnectionString } = await migrationsModule;
   for (const env of [
     {},
     { DATABASE_URL: 'postgresql://owner:private@sample-pooler.neon.tech/database' },
-    { DATABASE_URL_UNPOOLED: 'not a URL' },
-    { DATABASE_URL_UNPOOLED: 'https://sample.neon.tech/database' },
-    { DATABASE_URL_UNPOOLED: 'postgresql://sample.neon.tech/' },
-    { DATABASE_URL_UNPOOLED: 'postgresql://owner:private@sample-pooler.neon.tech/database' },
+    { DATABASE_URL_UNPOOLED: 'postgresql://migrator:private@sample.neon.tech/database' },
+    { APP_RUNTIME_DATABASE_URL: 'postgresql://app_runtime:private@sample.neon.tech/database' },
+    { MIGRATOR_DATABASE_URL: 'not a URL' },
+    { MIGRATOR_DATABASE_URL: 'https://migrator:private@sample.neon.tech/database' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://migrator:private@sample.neon.tech/' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://migrator:private@sample.neon.tech/database%00' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://migrator@sample.neon.tech/database' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://owner:private@sample.neon.tech/database' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://app_runtime:private@sample.neon.tech/database' },
+    { MIGRATOR_DATABASE_URL: 'postgresql://migrator:private@sample-pooler.neon.tech/database' },
   ]) assert.throws(() => migrationConnectionString(env), error => !error.message.includes('private'));
-  const direct = 'postgresql://owner:private@sample.neon.tech/database';
-  assert.equal(migrationConnectionString({ DATABASE_URL_UNPOOLED: ` ${direct} ` }), direct);
+  const direct = 'postgresql://migrator:private@sample.neon.tech/database?sslmode=require&channel_binding=require&connect_timeout=15';
+  assert.equal(migrationConnectionString({ MIGRATOR_DATABASE_URL: ` ${direct} ` }), direct);
+  for (const query of ['user=owner', 'options=-c%20role%3Downer', 'host=other.test', 'sslmode=disable', 'sslmode=require&sslmode=disable', 'channel_binding=disable', 'connect_timeout=private']) {
+    assert.throws(() => migrationConnectionString({ MIGRATOR_DATABASE_URL: `${direct.split('?')[0]}?${query}` }), error => !error.message.includes('private'));
+  }
+});
+
+test('migration diagnostics never reveal driver credentials, SQL text, or arbitrary error codes', async () => {
+  const { migrationFailureMessage, migrationConnectionString } = await migrationsModule;
+  const privateText = 'postgresql://owner:synthetic-secret@private.test/database';
+  assert.equal(migrationFailureMessage(Object.assign(new Error(privateText), { code: '42501' })), 'FAIL: Neon migrations were not committed. Database error 42501.');
+  assert.equal(migrationFailureMessage(Object.assign(new Error(privateText), { code: privateText })), 'FAIL: Neon migrations were not committed.');
+  assert.throws(() => migrationConnectionString({ MIGRATOR_DATABASE_URL: privateText }), error => {
+    assert.match(migrationFailureMessage(error), /must connect as migrator/);
+    assert(!migrationFailureMessage(error).includes('synthetic-secret'));
+    return true;
+  });
 });
 
 test('migration files have deterministic order and SHA-256 content checksums', async t => {
@@ -69,6 +91,15 @@ test('pending migrations and ledger entries commit in one advisory-locked transa
   assert(lock > 0 && ledgerRead > lock && migration > ledgerRead && ledgerWrite > migration);
   assert.deepEqual(client.calls[ledgerWrite].values, ['001_first.sql', readMigrations(directory)[0].checksum]);
   assert(!commands.includes('ROLLBACK'));
+  assert(!commands.some(command => /CREATE SCHEMA|REVOKE|ALTER .*OWNER/i.test(command)), 'an existing administrator-owned ledger must not need ownership changes');
+});
+
+test('a missing migration ledger fails before any automatic schema or privilege changes', async t => {
+  const { runMigrations } = await migrationsModule;
+  const client = databaseClient([], null, { ledger: null });
+  await assert.rejects(runMigrations(client, { directory: fixture(t) }), /provisioned by the database administrator/);
+  assert.equal(client.calls.at(-1).text, 'ROLLBACK');
+  assert(!client.calls.some(call => /CREATE|GRANT|REVOKE|INSERT INTO|ALTER/i.test(call.text)));
 });
 
 test('rerunning a successful migration skips its SQL and does not insert a second ledger entry', async t => {

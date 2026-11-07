@@ -20,7 +20,7 @@ Educational markets app with provider charts and a separate virtual trading simu
 
 ## Run
 1. Use the pnpm version pinned in `package.json`, then run `pnpm install --frozen-lockfile`.
-2. Copy `.env.example` to `.env` and fill the public Neon Auth URL and application backend origin for the intended branch. Apply current Neon migrations with `pnpm db:migrate` using its private database connection. Account details and feedback use authenticated server routes; a Neon Data API is not required. Keep the complete `.env` private.
+2. Copy `.env.example` to `.env` and fill the public Neon Auth URL and application backend origin for the intended branch. Follow [the least-privilege setup and rollback guide](docs/DATA_LAYER_LEAST_PRIVILEGE.md) before deploying these changes. Security SQL is manual in the Neon SQL Editor; it is never run by startup or builds. Runtime uses `APP_RUNTIME_DATABASE_URL`, local migrations use direct `MIGRATOR_DATABASE_URL`, and GitHub retention uses `RETENTION_JOB_DATABASE_URL`; owner credentials have no fallback. Existing table names, owners and rows are preserved. A Neon Data API is not required. Keep the complete `.env` private.
 3. Quick dev: `pnpm start` on port **8081** (Expo Go; RevenueCat will not work there). Keep one Expo server running; open web from that server with `w` instead of starting another one.
 4. Gradle build (needs JDK 17 and Android SDK installed, `ANDROID_HOME` set):
    - `pnpm android:build`  runs `cd android && ./gradlew assembleDebug`
@@ -55,6 +55,8 @@ Run `node --test tests/*.test.cjs` to verify preference persistence, startup rou
 ## Share a beta
 
 The current Android release implementation, build commands, public legal URLs, Google OAuth/signing details and remaining owner actions are in [GOOGLE_PLAY_RELEASE_AUDIT.md](docs/GOOGLE_PLAY_RELEASE_AUDIT.md). Paste-ready store content and the closed-test plan are in [GOOGLE_PLAY_RELEASE_CONTENT.md](docs/GOOGLE_PLAY_RELEASE_CONTENT.md). Activate the prepared feedback-retention workflow before relying on scheduled cleanup; see [RETENTION_SCHEDULER_SETUP.md](docs/RETENTION_SCHEDULER_SETUP.md).
+
+All mobile build profiles now use the public-only EAS `production` environment; the hosted backend uses its separate `preview` environment. Keep server database/email secrets out of the mobile build environment. Every protected API call now includes a current session proof as well as its JWT. APK build 5 predates this change, so rebuild and reinstall after the manual database setup and matching backend deployment. This repository change does not update either deployment automatically.
 
 Settings offers permanent account deletion after recent authentication, followed by clearing this installation's local data and returning to onboarding. Public `/privacy-policy` and `/delete-account` routes bypass onboarding/login startup guards, including when a saved wallet cannot load. The website also provides an email deletion-request fallback. Native Google deletion reauthentication preserves a safe return path across app restarts.
 

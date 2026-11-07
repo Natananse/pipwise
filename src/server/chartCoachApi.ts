@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless';
+import { runtimeDatabase } from './database';
 import { validateReviewInput } from '../lib/chartReview';
 import { authenticate, HttpError } from './authenticate';
 import { reserveChartReviewQuota, type ChartReviewReservation } from './chartCoachQuota';
@@ -10,7 +10,7 @@ const headers = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store
 const reply = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers });
 const providerFor = (env: Env) => !env.CHART_COACH_PROVIDER || env.CHART_COACH_PROVIDER === 'gemini' ? 'gemini' : env.CHART_COACH_PROVIDER === 'openai' ? 'openai' : null;
 const modelValid = (value: string | undefined) => /^[a-z0-9][a-z0-9._-]{1,100}$/i.test(value?.trim() || '');
-const configured = (env: Env) => env.CHART_COACH_ENABLED === '1' && !!env.DATABASE_URL?.trim()
+const configured = (env: Env) => env.CHART_COACH_ENABLED === '1' && !!env.APP_RUNTIME_DATABASE_URL?.trim()
   && (providerFor(env) === 'openai' ? !!env.OPENAI_API_KEY?.trim() && modelValid(env.OPENAI_MODEL)
     : providerFor(env) === 'gemini' && !!env.GEMINI_API_KEY?.trim() && modelValid(env.GEMINI_MODEL) && !!env.REVENUECAT_SECRET_KEY?.trim());
 const limitFor = (env: Env) => Math.min(50, Math.max(1, Math.trunc(Number(env.CHART_COACH_MONTHLY_LIMIT) || 10)));
@@ -66,7 +66,7 @@ export function createChartCoachApi(dependencies: Dependencies = {}) {
   const env = dependencies.env ?? process.env;
   const remote = dependencies.fetch ?? fetch;
   const identify = dependencies.authenticate ?? authenticate;
-  const reserve = dependencies.reserve ?? ((id: string, limit: number, globalLimit: number) => reserveChartReviewQuota(neon(env.DATABASE_URL!), id, limit, globalLimit));
+  const reserve = dependencies.reserve ?? ((id: string, limit: number, globalLimit: number) => reserveChartReviewQuota(runtimeDatabase(env), id, limit, globalLimit));
   return async (request: Request) => {
     try {
       const provider = providerFor(env);

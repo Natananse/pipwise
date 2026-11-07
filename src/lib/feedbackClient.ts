@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import type { FeedbackPayload } from './feedback';
-import { getAuthSession, getAuthToken, subscribeAuth } from './neonAuth';
+import { getAuthSession, getBackendCredentials, subscribeAuth } from './neonAuth';
 import { withStartupTimeout } from './startupTasks';
 
 function endpoint(): string {
@@ -34,11 +34,11 @@ export async function submitFeedback(payload: FeedbackPayload, signal?: AbortSig
     const session = await getAuthSession({ timeout: 10000 });
     if (session?.user.id !== payload.user_id) changed = true;
     checkAccount();
-    const token = await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Please try again.', 10000);
+    const credentials = await withStartupTimeout(getBackendCredentials(payload.user_id), 'Connecting your account took too long. Please try again.', 10000);
     checkAccount();
     const response = await fetch(url, {
       method: 'POST', signal: controller.signal,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { Authorization: `Bearer ${credentials.token}`, 'X-Pipwise-Session': credentials.sessionToken, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
     });
     const body: unknown = await response.json().catch(() => null);

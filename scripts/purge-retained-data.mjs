@@ -3,13 +3,25 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { neon } from '@neondatabase/serverless';
 import { countExpiredFeedback, purgeExpiredFeedback } from '../src/server/feedbackRetention.ts';
+import { databaseConnectionString, DatabaseConfigError, safeDatabaseErrorCode } from './database-config.mjs';
 
-/** Run with the pinned Node 24 runtime and a private DATABASE_URL. */
-export async function runFeedbackRetention(env = process.env, { execute = false } = {}) {
-  if (!env.DATABASE_URL) throw new Error('DATABASE_NOT_CONFIGURED');
-  const sql = neon(env.DATABASE_URL);
+export function retentionConnectionString(env = process.env) {
+  return databaseConnectionString(env, { variable: 'RETENTION_JOB_DATABASE_URL', role: 'retention_job' });
+}
+
+/** Use only the dedicated retention role, including when previewing cleanup. */
+export async function runFeedbackRetention(env = process.env, { execute = false, createSql = neon } = {}) {
+  const sql = createSql(retentionConnectionString(env));
   return execute ? { mode: 'execute', removed: await purgeExpiredFeedback(sql) }
     : { mode: 'dry-run', eligible: await countExpiredFeedback(sql) };
+}
+
+export function retentionFailureMessage(error) {
+  if (error instanceof DatabaseConfigError) return `Feedback retention cleanup failed. ${error.message}`;
+  const reason = error instanceof Error && ['INVALID_OPTIONS', 'ENV_FILE_NOT_FOUND'].includes(error.message)
+    ? error.message : 'CLEANUP_FAILED';
+  const code = safeDatabaseErrorCode(error);
+  return `Feedback retention cleanup failed (${reason}${code ? `; SQLSTATE ${code}` : ''}).`;
 }
 
 async function main(args) {
@@ -28,9 +40,7 @@ async function main(args) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
   } catch (error) {
     // Driver messages may include credentials or row values. Never print them.
-    const reason = error instanceof Error && ['DATABASE_NOT_CONFIGURED', 'INVALID_OPTIONS', 'ENV_FILE_NOT_FOUND'].includes(error.message)
-      ? error.message : 'CLEANUP_FAILED';
-    process.stderr.write(`Feedback retention cleanup failed (${reason}).\n`);
+    process.stderr.write(`${retentionFailureMessage(error)}\n`);
     process.exitCode = 1;
   }
 }

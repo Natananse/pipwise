@@ -42,7 +42,7 @@ Server-only settings belong in private `.env.local`, never `EXPO_PUBLIC_*`:
 
 - SMTP: `PIPWISE_SMTP_USER`, `PIPWISE_SMTP_APP_PASSWORD` (Google App Password).
 - Trusted hop: `PIPWISE_AUTH_EMAIL_RELAY_URL`, `PIPWISE_AUTH_EMAIL_RELAY_SECRET`.
-- Explicit original app credentials for the relay: `PIPWISE_AUTH_DATABASE_URL`,
+- Restricted original app credential for the relay: `APP_RUNTIME_DATABASE_URL` (the `app_runtime` role),
   `PIPWISE_ORIGIN_AUTH_BASE_URL`, `PIPWISE_ORIGIN_AUTH_JWKS_URL`.
 - Delivery gate: `PIPWISE_AUTH_EMAIL_ENABLED=1` after transport verification.
 
@@ -90,16 +90,22 @@ Phone collection does not verify phone ownership and does not send SMS. No
 address, date of birth, identity documents or KYC information is collected.
 
 The account API verifies the Neon session JWT signature, issuer, audience,
-expiry, verified email and subject using branch JWKS. Queries derive ownership
+expiry, verified email and subject using branch JWKS, then checks a matching,
+unexpired, non-impersonated live session. Queries derive ownership
 from the verified subject, never a user-supplied ID. The account and monthly usage
 tables have RLS enabled and no PUBLIC/client grants; only server credentials can
 access them. Migration files use the existing ledger and direct connection.
 
 Native API requests use `EXPO_PUBLIC_APP_API_URL`, falling back to the HTTPS
 origin of `EXPO_PUBLIC_NATIVE_AUTH_RETURN_URL`. Web uses same-origin API routes.
-The server needs `DATABASE_URL`, `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`.
+The server needs `APP_RUNTIME_DATABASE_URL`, `NEON_AUTH_BASE_URL` and `NEON_AUTH_JWKS_URL`.
 On Expo Hosting these must be **sensitive** variables, not public variables or
 secret-visibility variables (Hosting does not support secret visibility).
+
+Follow [the manual security setup and rollback guide](DATA_LAYER_LEAST_PRIVILEGE.md)
+before deploying this source. The API and relay reject legacy or owner-credential
+fallbacks. No agent applies these SQL files. Existing app table names, schema
+locations, owners and user rows are preserved; grants and RLS policies change.
 
 ## Moving practice market
 

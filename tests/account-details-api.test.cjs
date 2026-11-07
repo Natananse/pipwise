@@ -4,11 +4,11 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-function load(file, imports) {
+function load(file, imports, env = {}) {
   const module = { exports: {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
-  }).outputText, { module, exports: module.exports, Response, TextDecoder, process: { env: {} }, require(name) {
+  }).outputText, { module, exports: module.exports, Response, TextDecoder, process: { env }, require(name) {
     assert.ok(name in imports, `Unexpected import ${name}`);
     return imports[name];
   } });
@@ -17,11 +17,12 @@ function load(file, imports) {
 
 const registration = load('src/lib/registrationDetails.ts', {});
 class HttpError extends Error { constructor(status, code, message) { super(message); this.status = status; this.code = code; } }
-const { accountDetailsApi } = load('src/server/accountDetailsApi.ts', {
-  '@neondatabase/serverless': { neon: () => { throw new Error('Unexpected database access'); } },
+const imports = {
+  './database': { runtimeDatabase: () => { throw new Error('Unexpected database access'); } },
   '../lib/registrationDetails': registration,
   './authenticate': { HttpError, authenticate: async () => { throw new HttpError(401, 'UNAUTHORIZED', 'Sign in.'); } },
-});
+};
+const { accountDetailsApi } = load('src/server/accountDetailsApi.ts', imports);
 const owner = '12345678-1234-1234-1234-123456789012';
 const put = body => new Request('https://app.example.test/api/account-details', {
   method: 'PUT', headers: { 'content-type': 'application/json' }, body: typeof body === 'string' ? body : JSON.stringify(body),
@@ -78,6 +79,40 @@ test('database/provider failures never leak connection details to the client', a
   });
   assert.equal(response.status, 503);
   assert.ok(!(await response.text()).includes('private-password'));
+});
+
+test('default storage uses only the runtime factory and binds both reads and writes to the verified account', async () => {
+  const queries = [];
+  let factoryCalls = 0;
+  const { accountDetailsApi: api } = load('src/server/accountDetailsApi.ts', {
+    ...imports, './database': { runtimeDatabase() {
+      factoryCalls++;
+      return async (parts, ...values) => {
+        queries.push({ query: parts.join('?'), values });
+        return [{ country_code: 'ET', phone_number: null }];
+      };
+    } },
+  }, { APP_RUNTIME_DATABASE_URL: 'synthetic-runtime-connection', DATABASE_URL: 'unused-owner-connection' });
+  const authenticated = { authenticate: async () => ({ id: owner }) };
+  assert.equal((await api(new Request('https://app.example.test/api/account-details?userId=somebody-else'), authenticated)).status, 200);
+  assert.equal((await api(put({ countryCode: 'ET' }), authenticated)).status, 200);
+  assert.equal(factoryCalls, 2);
+  assert.deepEqual(queries[0].values, [owner]);
+  assert.deepEqual(queries[1].values, [owner, 'ET', null]);
+  assert.match(queries[0].query, /from public\.account_details where user_id = \?::uuid/i);
+  assert.match(queries[1].query, /insert into public\.account_details/i);
+  assert.doesNotMatch(queries.map(item => item.query).join(' '), /neon_auth\./);
+});
+
+test('legacy owner-only configuration cannot select a database connection', async () => {
+  let factoryCalls = 0;
+  const { accountDetailsApi: api } = load('src/server/accountDetailsApi.ts', {
+    ...imports, './database': { runtimeDatabase() { factoryCalls++; throw new Error('Factory must not run'); } },
+  }, { DATABASE_URL: 'unused-owner-connection' });
+  const response = await api(new Request('https://app.example.test/api/account-details'), { authenticate: async () => ({ id: owner }) });
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).error.code, 'DATABASE_NOT_CONFIGURED');
+  assert.equal(factoryCalls, 0);
 });
 
 test('oversized chunked forms are cancelled before buffering the entire request', async () => {

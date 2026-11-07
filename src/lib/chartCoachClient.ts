@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import type { ReviewInput } from './chartReview';
 import type { ChartUpload } from './chartUploads';
-import { getAuthSession, getAuthToken, subscribeAuth } from './neonAuth';
+import { getAuthSession, getBackendCredentials, subscribeAuth } from './neonAuth';
 import { withStartupTimeout } from './startupTasks';
 
 function endpoint() {
@@ -39,10 +39,10 @@ export async function reviewChartPhoto(input: ReviewInput, upload: ChartUpload, 
     const session = await getAuthSession({ timeout: 10000 });
     if (!session || session.user.id !== accountId) changed = true;
     checkAccount();
-    const token = await withStartupTimeout(getAuthToken(), 'Connecting your account took too long. Try again.', 10000);
+    const credentials = await withStartupTimeout(getBackendCredentials(accountId), 'Connecting your account took too long. Try again.', 10000);
     checkAccount();
     const response = await fetch(url, {
-      method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      method: 'POST', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${credentials.token}`, 'X-Pipwise-Session': credentials.sessionToken },
       body: JSON.stringify({ input, image: { mimeType: upload.mimeType, base64: upload.base64 }, consent: true, provider }),
     });
     checkAccount();

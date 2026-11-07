@@ -44,10 +44,10 @@ jobs:
       - name: Preview eligible feedback without deleting it
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.execute != true }}
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RETENTION_JOB_DATABASE_URL: ${{ secrets.RETENTION_JOB_DATABASE_URL }}
         run: node scripts/purge-retained-data.mjs
       - name: Delete feedback eligible under the retention policy
         if: ${{ github.event_name == 'schedule' || inputs.execute == true }}
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RETENTION_JOB_DATABASE_URL: ${{ secrets.RETENTION_JOB_DATABASE_URL }}
         run: node scripts/purge-retained-data.mjs --execute

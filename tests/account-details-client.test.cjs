@@ -33,7 +33,11 @@ function harness({ platform = 'android', storage = new Map() } = {}) {
     './secureStorage': { loadSecureStore: async () => ({ getItemAsync: async key => storage.get(key) || null, setItemAsync: async (key, value) => storage.set(key, value), deleteItemAsync: async key => storage.delete(key) }) },
     './startupTasks': { withStartupTimeout: promise => promise },
     './neonAuth': {
-      getAuthSession: async () => currentSession, getAuthToken: () => token(),
+      getAuthSession: async () => currentSession,
+      getBackendCredentials: async expected => {
+        assert.equal(expected, currentSession.user.id);
+        return { accountId: expected, token: await token(), sessionToken: 'SESSION_PROOF_PLACEHOLDER' };
+      },
       subscribeAuth: listener => { listeners.add(listener); return () => listeners.delete(listener); },
     },
   }, {
@@ -50,6 +54,7 @@ test('account-details requests authenticate and never send a client-chosen accou
   await h.api.saveAccountDetails(details);
   assert.equal(h.requests[0].url, 'https://pipwise.example/api/account-details');
   assert.equal(h.requests[0].options.headers.Authorization, 'Bearer signed-token');
+  assert.equal(h.requests[0].options.headers['X-Pipwise-Session'], 'SESSION_PROOF_PLACEHOLDER');
   assert.deepEqual(JSON.parse(h.requests[0].options.body), details);
   assert.equal(h.listeners.size, 0);
   const web = harness({ platform: 'web' });

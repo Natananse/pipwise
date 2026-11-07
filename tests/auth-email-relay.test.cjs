@@ -17,7 +17,8 @@ const fixtureEnv = {
   PIPWISE_SMTP_APP_PASSWORD: 'synthetic-private-password',
   PIPWISE_ORIGIN_AUTH_BASE_URL: 'https://origin.example.test/auth',
   PIPWISE_ORIGIN_AUTH_JWKS_URL: 'https://origin.example.test/auth/.well-known/jwks.json',
-  PIPWISE_AUTH_DATABASE_URL: 'postgresql://origin:synthetic@origin.example.test/origin',
+  APP_RUNTIME_DATABASE_URL: 'postgresql://app_runtime:synthetic@origin.example.test/origin?sslmode=require',
+  PIPWISE_AUTH_DATABASE_URL: 'postgresql://legacy_owner:must-not-be-used@origin.example.test/origin',
   // These injected relay-project values must never select the app's identity or ledger.
   DATABASE_URL: 'postgresql://relay:unused@relay.example.test/relay',
   NEON_AUTH_BASE_URL: 'https://relay.example.test/auth',
@@ -49,6 +50,9 @@ async function harness(options = {}) {
     './authEmailTemplate': template,
     jose: { ...jose, createRemoteJWKSet(url) { seen.keyRequests.push(url.href); return localKeys; } },
   });
+  const database = load('src/server/database.ts', {
+    '@neondatabase/serverless': { neon(url) { seen.database.push(url); return {}; } },
+  }, env);
   const adapter = load('src/functions/authEmail.ts', {
     'node:crypto': { ...crypto, timingSafeEqual(left, right) {
       seen.comparisons++;
@@ -56,7 +60,7 @@ async function harness(options = {}) {
       assert.equal(right.byteLength, 32);
       return crypto.timingSafeEqual(left, right);
     } },
-    '@neondatabase/serverless': { neon(url) { seen.database.push(url); return {}; } },
+    '../server/database': database,
     '../server/authEmailDelivery': { createAuthEmailDelivery() {
       const owner = {};
       seen.deliveryOwners.push(owner);
@@ -114,7 +118,7 @@ test('trusted relay preserves JSON Content-Type and exact signed Unicode/whitesp
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { delivered: true });
   assert.deepEqual(h.seen.keyRequests, [fixtureEnv.PIPWISE_ORIGIN_AUTH_JWKS_URL]);
-  assert.deepEqual(h.seen.database, [fixtureEnv.PIPWISE_AUTH_DATABASE_URL]);
+  assert.deepEqual(h.seen.database, [fixtureEnv.APP_RUNTIME_DATABASE_URL]);
   assert.equal(h.seen.sent.length, 1);
   assert.equal(h.seen.sent[0].to, 'member@example.test');
   assert.match(h.seen.sent[0].text, /012345/);
@@ -199,10 +203,25 @@ test('missing or weak origin secrets and disabled/missing origin service configu
   }
   for (const overrides of [
     { PIPWISE_AUTH_EMAIL_ENABLED: '0' }, { PIPWISE_AUTH_EMAIL_ENABLED: undefined },
-    { PIPWISE_AUTH_DATABASE_URL: undefined }, { PIPWISE_ORIGIN_AUTH_BASE_URL: undefined }, { PIPWISE_ORIGIN_AUTH_JWKS_URL: undefined },
+    { APP_RUNTIME_DATABASE_URL: undefined }, { PIPWISE_ORIGIN_AUTH_BASE_URL: undefined }, { PIPWISE_ORIGIN_AUTH_JWKS_URL: undefined },
   ]) {
     const h = await harness({ overrides });
     assert.equal((await h.handler(await h.signed())).status, 503);
+    noDeliveryWork(h.seen);
+  }
+});
+
+test('relay rejects owner or overridden runtime credentials without falling back to injected or legacy URLs', async () => {
+  for (const APP_RUNTIME_DATABASE_URL of [
+    undefined,
+    fixtureEnv.DATABASE_URL,
+    fixtureEnv.PIPWISE_AUTH_DATABASE_URL,
+    fixtureEnv.APP_RUNTIME_DATABASE_URL + '&user=owner',
+  ]) {
+    const h = await harness({ overrides: { APP_RUNTIME_DATABASE_URL } });
+    const response = await h.handler(await h.signed());
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).error.code, 'EMAIL_UNAVAILABLE');
     noDeliveryWork(h.seen);
   }
 });
@@ -250,7 +269,10 @@ test('removed health probe returns 404 without reading private settings or touch
 });
 
 test('optional policy declares only authmail and requires explicit gate and strong private configuration', () => {
-  const imports = { '@neon/config/v1': { defineConfig: value => value } };
+  const database = load('src/server/database.ts', {
+    '@neondatabase/serverless': { neon() { assert.fail('Loading the mail policy must not construct a database client'); } },
+  });
+  const imports = { '@neon/config/v1': { defineConfig: value => value }, './src/server/database': database };
   const env = { ...fixtureEnv, PIPWISE_AUTH_EMAIL_ENABLED: '0' };
   const policy = load('neon.email.ts', imports, env).default;
   assert.deepEqual(Object.keys(policy), ['functions']);
@@ -261,9 +283,12 @@ test('optional policy declares only authmail and requires explicit gate and stro
   assert.equal(Object.keys(fn.env).length, 7);
   assert.equal(Object.hasOwn(fn.env, 'PIPWISE_AUTH_EMAIL_HEALTH_TOKEN'), false);
   assert.equal(Object.keys(fn.env).some(key => key.startsWith('NEON_') || key === 'DATABASE_URL'), false);
+  assert.equal(fn.env.APP_RUNTIME_DATABASE_URL, fixtureEnv.APP_RUNTIME_DATABASE_URL);
+  assert.equal(Object.hasOwn(fn.env, 'PIPWISE_AUTH_DATABASE_URL'), false);
   for (const name of Object.keys(fn.env)) {
     assert.throws(() => load('neon.email.ts', imports, { ...env, [name]: '' }), /Missing relay configuration/);
   }
   assert.throws(() => load('neon.email.ts', imports, { ...env, PIPWISE_AUTH_EMAIL_ENABLED: 'true' }), /explicitly 0 or 1/);
   assert.throws(() => load('neon.email.ts', imports, { ...env, PIPWISE_AUTH_EMAIL_RELAY_SECRET: 'short' }), /at least 43 printable characters/);
+  assert.throws(() => load('neon.email.ts', imports, { ...env, APP_RUNTIME_DATABASE_URL: fixtureEnv.DATABASE_URL }), /app_runtime database role/);
 });

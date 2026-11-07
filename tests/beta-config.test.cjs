@@ -21,8 +21,8 @@ const releaseProfile = (distribution, environment) => ({
 const easFixture = () => ({
   cli: { appVersionSource: 'remote' },
   build: {
-    preview: { ...releaseProfile('internal', 'preview'), android: { buildType: 'apk' } },
-    testflight: releaseProfile('store', 'preview'),
+    preview: { ...releaseProfile('internal', 'production'), android: { buildType: 'apk' } },
+    testflight: releaseProfile('store', 'production'),
     production: releaseProfile('store', 'production'),
   },
 });
@@ -45,13 +45,13 @@ test('preflight catches a development APK, mismatched environment, or simulator-
   easConfig.build.preview.developmentClient = true;
   easConfig.build.preview.android = { buildType: 'app-bundle', gradleCommand: ':app:assembleDebug' };
   easConfig.build.preview.env.EXPO_PUBLIC_PREVIEW_ONBOARDING = '1';
-  easConfig.build.preview.environment = 'production';
+  easConfig.build.preview.environment = 'preview';
   const errors = checkBetaConfig({ appConfig: app, easConfig, env: publicEnv }).errors.join('\n');
   assert.match(errors, /standalone/);
   assert.match(errors, /buildType to apk/);
   assert.match(errors, /assembleRelease/);
   assert.match(errors, /returning-user/);
-  assert.match(errors, /environment to preview/);
+  assert.match(errors, /environment to production/);
   easConfig.build.testflight.ios = { simulator: true };
   assert.match(checkBetaConfig({ appConfig: app, easConfig, env: publicEnv, profile: 'testflight' }).errors.join('\n'), /physical iPhones/);
 });

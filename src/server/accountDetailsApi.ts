@@ -1,4 +1,4 @@
-import { neon } from '@neondatabase/serverless';
+import { runtimeDatabase } from './database';
 import { normalizeRegistrationDetails, type RegistrationDetails } from '../lib/registrationDetails';
 import { authenticate, HttpError } from './authenticate';
 
@@ -10,9 +10,9 @@ type Dependencies = {
 };
 
 function database() {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.APP_RUNTIME_DATABASE_URL;
   if (!url) throw new HttpError(503, 'DATABASE_NOT_CONFIGURED', 'Account details are temporarily unavailable.');
-  return neon(url);
+  return runtimeDatabase();
 }
 
 function fromRow(row: StoredDetails): RegistrationDetails {
