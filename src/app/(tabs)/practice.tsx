@@ -126,7 +126,7 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
 
         <View style={[styles.chartCard, { flex: columns ? 0.62 : undefined }]}>
           <TradingChart key={`${asset.symbol}-${timeframe}`} asset={asset} referenceUI terminal accentColor={visual.color} plotHeight={columns ? 350 : Math.max(210, Math.min(300, height - 610))} external={{ candles: series.candles, timeframe, loading: false, error: '', sample: true, moving: true, onRetry: () => {}, onTimeframeChange: next => { if (marketTimeframes.includes(next as MarketTimeframe)) setTimeframe(next as MarketTimeframe); } }} keyLevels={levels} />
-          <Row style={styles.chartCaption}><Row style={{ justifyContent: 'flex-start', gap: 5 }}><Icon name="shield-checkmark-outline" size={12} color={terminal.mint} /><Label size={8} color={terminal.muted}>SIMULATED MARKET</Label></Row><Label size={8} color={terminal.muted}>Touch chart to inspect</Label></Row>
+          <Row style={styles.chartCaption}><Row style={{ justifyContent: 'flex-start', gap: 5 }}><Icon name="shield-checkmark-outline" size={12} color={terminal.mint} /><Label size={8} color={terminal.muted}>SIMULATED MARKET</Label></Row><Label size={8} color={terminal.muted}>Hold chart to inspect</Label></Row>
           <Label size={9} color={terminal.muted}>Support · resistance · prior-bar levels · pivot. Open chart tools for values.</Label>
         </View>
       </View>
