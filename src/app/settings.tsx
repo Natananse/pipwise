@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { AppButton, AppInput, ConfirmationDialog, Label, Sheet } from '../components/design';
+import { BuildIdentity } from '../components/BuildIdentity';
 import { LanguageSelector } from '../components/LanguageSelector';
 import { ReferenceCard, ReferenceScreen, referenceColors as c } from '../components/reference';
 import { onboardingText } from '../lib/onboarding';
@@ -80,6 +81,7 @@ export default function Settings() {
   return <ReferenceScreen>
     <AppButton label="Back to profile" icon="arrow-back" variant="ghost" onPress={() => router.replace('/profile')} />
     <Label bold size={28} color={c.ink}>Settings</Label>
+    <ReferenceCard><BuildIdentity /></ReferenceCard>
     <ReferenceCard><AppButton label="Replay onboarding" icon="refresh-outline" onPress={() => { void review(false); }} disabled={busy} /><Label muted size={11}>See the 10-language selection and three setup questions again. Your virtual funds and lesson progress are kept.</Label></ReferenceCard>
     <ReferenceCard><Label bold size={18}>Your account</Label><Label muted size={13}>{demo ? 'Local practice profile' : session?.user.email || 'Practice explorer'}</Label><Label muted size={11}>Your goal: {preferences.goal || 'Explore financial markets'}</Label></ReferenceCard>
     <ReferenceCard><Label bold size={18}>Language</Label><LanguageSelector light value={language} onSelect={value => update({ language: value })} /><Label muted size={11}>10 languages for onboarding and core navigation. Lesson content is currently in English.</Label></ReferenceCard>

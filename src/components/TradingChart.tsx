@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import { Asset, Candle, marketData } from '../lib/market';
 import { useTheme } from '../lib/theme';
+import { tradeColors, tradeRadii, tradeSpace } from '../lib/tradeTheme';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { ContentState } from './ContentState';
 import { ChartReadout, InteractiveChartPlot } from './InteractiveChartPlot';
@@ -19,19 +20,33 @@ type ExternalChartData = {
 };
 type ChartLevel = { label: string; price: number; color: string };
 
-export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor, external, keyLevels = [] }: {
+export function TradingChart({ asset, small = false, plotHeight, compactControls = false, referenceUI = false, terminal = false, accentColor, external, keyLevels = [], presentation = 'default' }: {
   asset: Asset; small?: boolean; plotHeight?: number; compactControls?: boolean; referenceUI?: boolean; terminal?: boolean; accentColor?: string;
   external?: ExternalChartData;
   keyLevels?: ChartLevel[];
+  presentation?: 'default' | 'trade';
 }) {
   const { colors } = useTheme();
-  const tone = colors.text === colors.sheetText ? 'light' : 'dark';
-  const lineColor = accentColor ?? (referenceUI ? '#456987' : colors.text);
-  const priceColor = terminal ? accentColor ?? colors.primary : colors.primary;
-  const gridColor = terminal ? '#29332D' : colors.border;
-  const axisColor = terminal ? '#A0AAA2' : colors.sub;
-  const controlColor = terminal ? '#F4F6EF' : colors.text;
-  const controlSurface = terminal ? '#202923' : colors.raised;
+  const tradePresentation = presentation === 'trade';
+  const chartTerminal = terminal && !tradePresentation;
+  const tone = tradePresentation || colors.text === colors.sheetText ? 'light' : 'dark';
+  const lineColor = tradePresentation ? tradeColors.text : accentColor ?? (referenceUI ? '#456987' : colors.text);
+  const priceColor = tradePresentation ? tradeColors.primary : chartTerminal ? accentColor ?? colors.primary : colors.primary;
+  const gridColor = tradePresentation ? tradeColors.grid : chartTerminal ? '#29332D' : colors.border;
+  const axisColor = tradePresentation ? tradeColors.sub : chartTerminal ? '#A0AAA2' : colors.sub;
+  const controlColor = tradePresentation ? tradeColors.text : chartTerminal ? '#F4F6EF' : colors.text;
+  const controlSurface = tradePresentation ? tradeColors.raised : chartTerminal ? '#202923' : colors.raised;
+  const controlBorder = tradePresentation ? tradeColors.border : gridColor;
+  const controlGap = tradePresentation ? tradeSpace.xs : chartTerminal ? 6 : 10;
+  const controlRadius = tradePresentation ? tradeRadii.control : 14;
+  const scopedChartPaint = {
+    line: lineColor, price: priceColor,
+    onPrice: tradePresentation ? tradeColors.onPrimary : chartTerminal ? '#101811' : colors.onPrimary,
+    grid: gridColor, axis: axisColor, text: tradePresentation ? tradeColors.text : colors.text,
+    up: tradePresentation ? tradeColors.up : chartTerminal ? '#6EE7BE' : colors.up,
+    down: tradePresentation ? tradeColors.down : chartTerminal ? '#FF8993' : colors.down,
+  };
+  const chartLevels = tradePresentation ? keyLevels.map(level => ({ ...level, color: level.label.startsWith('Support') ? tradeColors.up : tradeColors.sub })) : keyLevels;
   const [demoCandles, setCandles] = useState<Candle[]>([]);
   const [demoFrame, setDemoFrame] = useState('1h');
   const [mode, setMode] = useState(referenceUI && !external?.moving ? 'Line' : 'Candles');
@@ -72,7 +87,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   }, [asset, frame, retry, externalMode]);
 
   const h = Math.max(180, plotHeight ?? (small ? 180 : 300));
-  const axisWidth = Math.max(72, asset.price.toFixed(asset.precision).length * 7 + 16);
+  const axisWidth = Math.max(tradePresentation ? 80 : 72, asset.price.toFixed(asset.precision).length * 7 + 16);
   const plotW = Math.max(80, width - axisWidth);
   const controller = useChartController({ candles, identity: `${asset.symbol}:${frame}`, initialCount: referenceUI ? 80 : 36 });
   const focused = useIsFocused();
@@ -93,37 +108,39 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
     { label: 'Pan to later candles', icon: 'chevron-forward', disabled: loading || !controller.controls.canLater, onPress: () => act(controller.panLater) },
     { label: 'Reset chart view', icon: 'refresh', disabled: loading || !candles.length, onPress: () => act(controller.reset) },
   ];
+  const readout = !small && (!referenceUI || external) ? <ChartReadout prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} plotW={plotW} precision={asset.precision} frame={frame} axisColor={axisColor} up={tradePresentation ? tradeColors.up : colors.up} down={tradePresentation ? tradeColors.down : colors.down} muted={tradePresentation ? tradeColors.sub : colors.sub} inspectionOnly={tradePresentation} /> : null;
 
   return <View style={{ gap: 8 }}>
-    {referenceUI && <Row style={{ justifyContent: terminal ? 'space-between' : 'flex-end', gap: terminal ? 6 : 10, flexWrap: 'wrap' }}>
-      {terminal && <Label bold size={9} color="#A0AAA2" style={{ letterSpacing: 1.3 }}>PRICE ACTION</Label>}
-      <Row style={{ gap: terminal ? 6 : 10 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Change chart timeframe" onPress={() => act(() => setFramesOpen(true))} style={({ pressed }) => ({ minHeight: terminal ? 44 : 42, paddingHorizontal: terminal ? 11 : 14, borderRadius: 14, borderWidth: terminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, flexDirection: 'row', gap: 8, alignItems: 'center', opacity: pressed ? 0.6 : 1 })}><Label bold size={12} color={controlColor}>{frame}</Label><Ionicons name="chevron-down" size={12} color={controlColor} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Switch to ${mode === 'Line' ? 'candlestick' : 'line'} chart`} onPress={() => act(() => setMode(value => value === 'Line' ? 'Candles' : 'Line'))} style={({ pressed }) => ({ minHeight: terminal ? 44 : 42, width: 44, borderRadius: 14, borderWidth: terminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={mode === 'Line' ? 'stats-chart-outline' : 'pulse-outline'} size={21} color={controlColor} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Chart indicators and controls" onPress={() => act(() => setControlsOpen(true))} style={({ pressed }) => ({ minHeight: terminal ? 44 : 42, width: 44, borderRadius: 14, borderWidth: terminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="color-wand-outline" size={21} color={average ? terminal ? lineColor : colors.primary : controlColor} /></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Reset chart view" disabled={loading || !candles.length} accessibilityState={{ disabled: loading || !candles.length }} onPress={() => act(controller.reset)} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: 14, borderWidth: terminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="refresh" size={19} color={controlColor} /></Pressable>
+    {referenceUI && <Row style={{ justifyContent: chartTerminal ? 'space-between' : 'flex-end', gap: controlGap, flexWrap: 'wrap' }}>
+      {chartTerminal && <Label bold size={9} color="#A0AAA2" style={{ letterSpacing: 1.3 }}>PRICE ACTION</Label>}
+      <Row style={{ gap: controlGap }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Change chart timeframe" onPress={() => act(() => setFramesOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, paddingHorizontal: tradePresentation ? tradeSpace.sm : chartTerminal ? 11 : 14, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, flexDirection: 'row', gap: 8, alignItems: 'center', opacity: pressed ? 0.6 : 1 })}><Label bold size={12} color={controlColor}>{frame}</Label><Ionicons name="chevron-down" size={12} color={controlColor} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Switch to ${mode === 'Line' ? 'candlestick' : 'line'} chart`} onPress={() => act(() => setMode(value => value === 'Line' ? 'Candles' : 'Line'))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={mode === 'Line' ? 'stats-chart-outline' : 'pulse-outline'} size={21} color={controlColor} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Chart indicators and controls" onPress={() => act(() => setControlsOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="color-wand-outline" size={21} color={tradePresentation ? average ? tradeColors.up : controlColor : average ? chartTerminal ? lineColor : colors.primary : controlColor} /></Pressable>
+        {!tradePresentation && <Pressable accessibilityRole="button" accessibilityLabel="Reset chart view" disabled={loading || !candles.length} accessibilityState={{ disabled: loading || !candles.length }} onPress={() => act(controller.reset)} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: 14, borderWidth: chartTerminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="refresh" size={19} color={controlColor} /></Pressable>}
       </Row>
     </Row>}
-    {!small && (!referenceUI || external) && <ChartReadout prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} plotW={plotW} precision={asset.precision} frame={frame} axisColor={axisColor} up={colors.up} down={colors.down} muted={colors.sub} />}
+    {!tradePresentation && readout}
     <View onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ height: h }}
       accessibilityLabel={`${asset.symbol} ${external?.moving ? 'moving simulated' : sample ? 'sample' : 'historical'} ${mode.toLowerCase()} chart. Pinch to zoom, drag sideways to pan, double tap to zoom, and hold to inspect. Chart tools include zoom, pan and reset buttons.`}>
       {loading ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="skeleton" tone={tone} title="Loading chart" /></View>
         : error ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="error" tone={tone} title="Chart unavailable" detail={error} onRetry={reload} /></View>
           : !candles.length ? <View style={{ flex: 1, justifyContent: 'center' }}><ContentState kind="empty" tone={tone} title="No chart data" detail={sample ? 'There are no sample candles for this asset and timeframe.' : 'Candles will appear when the market feed is connected.'} /></View>
             : <InteractiveChartPlot prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} gesture={gesture}
-              width={width} height={h} plotW={plotW} precision={asset.precision} frame={frame} mode={small ? 'Line' : mode} average={average} terminal={terminal} area={referenceUI} levels={keyLevels}
-              paint={{ line: lineColor, price: priceColor, onPrice: terminal ? '#101811' : colors.onPrimary, grid: gridColor, axis: axisColor, text: colors.text, up: terminal ? '#6EE7BE' : colors.up, down: terminal ? '#FF8993' : colors.down }} />}
+              width={width} height={h} plotW={plotW} precision={asset.precision} frame={frame} mode={small ? 'Line' : mode} average={average} terminal={chartTerminal} area={referenceUI} levels={chartLevels} axisFontSize={tradePresentation ? 11 : 9} averageColor={tradePresentation ? tradeColors.average : undefined}
+              paint={scopedChartPaint} />}
+      {tradePresentation && !loading && !error && candles.length > 0 && readout}
     </View>
     {referenceUI && <>
       <Sheet visible={framesOpen} title="Chart timeframe" onClose={() => setFramesOpen(false)}>{['1m', '5m', '15m', '1h', '4h', '1D'].map(value => <AppButton key={value} label={value} variant={frame === value ? 'primary' : 'secondary'} onPress={() => { if (value !== frame) { setLoading(true); setFrame(value); } setFramesOpen(false); }} />)}</Sheet>
-      <Sheet visible={controlsOpen} title="Chart tools" onClose={() => setControlsOpen(false)}><AppButton label={average ? 'Hide 7-period moving average' : 'Show 7-period moving average'} variant="secondary" onPress={() => act(() => setAverage(value => !value))} /><Label muted size={12}>The moving average smooths historical {sample ? 'sample ' : ''}closing prices. It is not a forecast.</Label>{keyLevels.length > 0 && <><Label bold>Reference levels · {frame}</Label>{keyLevels.map(level => <Row key={level.label}><Label size={12}>{level.label}</Label><Label bold size={12}>{level.price.toFixed(asset.precision)}</Label></Row>)}<Label muted size={11}>Support and resistance use the previous 20 completed bars. The pivot uses the previous bar. Levels exclude the forming candle and are practice references.</Label></>}<ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} /><HistoricalCaption candles={candles} sample={sample} moving={external?.moving} /></Sheet>
+      <Sheet visible={controlsOpen} title="Chart tools" onClose={() => setControlsOpen(false)}><AppButton label={average ? 'Hide 7-period moving average' : 'Show 7-period moving average'} variant="secondary" onPress={() => act(() => setAverage(value => !value))} />{!tradePresentation && <Label muted size={12}>The moving average smooths historical {sample ? 'sample ' : ''}closing prices. It is not a forecast.</Label>}{keyLevels.length > 0 && <><Label bold>Reference levels · {frame}</Label>{keyLevels.map(level => <Row key={level.label}><Label size={12}>{level.label}</Label><Label bold size={12}>{level.price.toFixed(asset.precision)}</Label></Row>)}{!tradePresentation && <Label muted size={11}>Support and resistance use the previous 20 completed bars. The pivot uses the previous bar. Levels exclude the forming candle and are practice references.</Label>}</>}<ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} />{!tradePresentation && <HistoricalCaption candles={candles} sample={sample} moving={external?.moving} />}</Sheet>
     </>}
     {!small && !referenceUI && <>
       <Row style={{ gap: 8 }}>
         <View style={{ flex: 1 }}><SegmentedControl options={['5m', '15m', '1h', '4h', '1D']} value={frame} tone={tone} onChange={value => { if (value === frame) return; setLoading(true); setError(''); setFrame(value); }} /></View>
         {compactControls && <Pressable accessibilityRole="button" accessibilityLabel="Chart controls" onPress={() => act(() => setControlsOpen(true))} style={({ pressed }) => ({ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.card, opacity: pressed ? 0.6 : 1 })}><Ionicons name="options-outline" size={20} color={colors.text} /></Pressable>}
       </Row>
-      {compactControls ? <Sheet visible={controlsOpen} title="Chart controls" onClose={() => setControlsOpen(false)}><ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} /><HistoricalCaption /></Sheet> : <><ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} /><HistoricalCaption /></>}
+      {compactControls ? <Sheet visible={controlsOpen} title="Chart controls" onClose={() => setControlsOpen(false)}><ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} />{!tradePresentation && <HistoricalCaption />}</Sheet> : <><ChartTools mode={mode} onModeChange={() => act(() => setMode(mode === 'Candles' ? 'Line' : 'Candles'))} tools={tools} width={width} />{!tradePresentation && <HistoricalCaption />}</>}
     </>}
   </View>;
 }

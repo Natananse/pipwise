@@ -24,9 +24,9 @@ type Layout = { width: number; height: number; plotW: number; precision: number 
 export type ChartPlotLevel = { label: string; price: number; color: string };
 
 /** A bounded number of SVG nodes; gesture updates only their native animated props. */
-export const InteractiveChartPlot = memo(function InteractiveChartPlot({ prepared, viewport, crosshair, gesture, width, height, plotW, precision, frame, mode, average, terminal, area, paint, levels }: Values & Layout & {
+export const InteractiveChartPlot = memo(function InteractiveChartPlot({ prepared, viewport, crosshair, gesture, width, height, plotW, precision, frame, mode, average, terminal, area, paint, levels, axisFontSize = 9, averageColor = '#EFAD43' }: Values & Layout & {
   gesture: ReturnType<typeof useChartGestures>['gesture'];
-  frame: string; mode: string; average: boolean; terminal: boolean; area: boolean; paint: Paint; levels: ChartPlotLevel[];
+  frame: string; mode: string; average: boolean; terminal: boolean; area: boolean; paint: Paint; levels: ChartPlotLevel[]; axisFontSize?: number; averageColor?: string;
 }) {
   const id = useId().replace(/:/g, '');
   const top = 16;
@@ -77,13 +77,13 @@ export const InteractiveChartPlot = memo(function InteractiveChartPlot({ prepare
               <AnimatedPath animatedProps={upProps} stroke={paint.up} strokeWidth={0.8} fill="none" />
               <AnimatedPath animatedProps={downProps} stroke={paint.down} strokeWidth={0.8} fill={paint.down} />
             </>}
-            {average && <AnimatedPath animatedProps={averageProps} stroke="#EFAD43" strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />}
+            {average && <AnimatedPath animatedProps={averageProps} stroke={averageColor} strokeWidth={2} fill="none" strokeLinejoin="round" strokeLinecap="round" />}
             <AnimatedLine animatedProps={priceLineProps} x1={0} x2={plotW} stroke={paint.price} strokeDasharray="4 4" strokeWidth={1} />
             <AnimatedCircle animatedProps={dotProps} r={3.5} fill={paint.line} />
             <AnimatedLine animatedProps={crossXProps} y1={top} y2={bottom} stroke={paint.axis} strokeDasharray="4 4" />
             <AnimatedLine animatedProps={crossYProps} x1={0} x2={plotW} stroke={paint.axis} strokeDasharray="4 4" />
           </G>
-          <ChartAxes prepared={prepared} viewport={viewport} crosshair={crosshair} geometry={geometry} width={width} height={height} plotW={plotW} precision={precision} frame={frame} paint={paint} levels={levels} clipId={`plot-${id}`} />
+          <ChartAxes prepared={prepared} viewport={viewport} crosshair={crosshair} geometry={geometry} width={width} height={height} plotW={plotW} precision={precision} frame={frame} paint={paint} levels={levels} clipId={`plot-${id}`} axisFontSize={axisFontSize} />
         </Svg>
       </View>
     </GestureDetector>
@@ -102,7 +102,7 @@ function ReferenceLevel({ level, geometry, viewport, prepared, plotW, top, botto
 }
 
 type Snapshot = { low: number; high: number; startTime: number; midTime: number; endTime: number; close: number; lastY: number; active: boolean; cursorPrice: number; cursorY: number; latest: boolean };
-function ChartAxes({ prepared, viewport, crosshair, geometry, width, height, plotW, precision, frame, paint, levels, clipId }: Values & Layout & { geometry: SharedValue<Geometry>; frame: string; paint: Paint; levels: ChartPlotLevel[]; clipId: string }) {
+function ChartAxes({ prepared, viewport, crosshair, geometry, width, height, plotW, precision, frame, paint, levels, clipId, axisFontSize = 9 }: Values & Layout & { geometry: SharedValue<Geometry>; frame: string; paint: Paint; levels: ChartPlotLevel[]; clipId: string; axisFontSize?: number }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const lastSent = useSharedValue(0);
   const trailing = useSharedValue(0);
@@ -133,15 +133,15 @@ function ChartAxes({ prepared, viewport, crosshair, geometry, width, height, plo
   const time = (value: number) => Number.isFinite(value) ? new Date(value).toISOString().slice(frame === '1D' ? 5 : 11, frame === '1D' ? 10 : 16) : '—';
   return <>
     {snapshot.latest && <G clipPath={`url(#${clipId})`}>{levels.filter(level => !level.label.startsWith('Prior') && level.price >= snapshot.low && level.price <= snapshot.high).map(level => <SvgText key={level.label} x={7} y={Math.max(top + 8, top + (snapshot.high - level.price) / Math.max(Number.EPSILON, snapshot.high - snapshot.low) * (bottom - top) - 4)} fill={level.color} fontSize={8} fontFamily={fonts.medium}>{level.label.split(' · ')[0].toUpperCase()}</SvgText>)}</G>}
-    {[0, 0.25, 0.5, 0.75, 1].map(fraction => <SvgText key={fraction} x={plotW + 8} y={top + fraction * (bottom - top) + 3} fill={paint.axis} fontSize={9} fontFamily={fonts.medium}>{(snapshot.high - fraction * (snapshot.high - snapshot.low)).toFixed(precision)}</SvgText>)}
-    {[snapshot.startTime, snapshot.midTime, snapshot.endTime].map((value, index) => <SvgText key={index} x={8 + index / 2 * (plotW - 16)} y={height - 8} fill={paint.axis} fontSize={9} fontFamily={fonts.medium} textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}>{time(value)}</SvgText>)}
+    {[0, 0.25, 0.5, 0.75, 1].map(fraction => <SvgText key={fraction} x={plotW + 8} y={top + fraction * (bottom - top) + 3} fill={paint.axis} fontSize={axisFontSize} fontFamily={fonts.medium}>{(snapshot.high - fraction * (snapshot.high - snapshot.low)).toFixed(precision)}</SvgText>)}
+    {[snapshot.startTime, snapshot.midTime, snapshot.endTime].map((value, index) => <SvgText key={index} x={8 + index / 2 * (plotW - 16)} y={height - 8} fill={paint.axis} fontSize={axisFontSize} fontFamily={fonts.medium} textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'}>{time(value)}</SvgText>)}
     <Rect x={plotW + 2} y={markerY - 12} width={width - plotW - 2} height={24} rx={5} fill={paint.price} />
-    <SvgText x={plotW + (width - plotW) / 2} y={markerY + 3.5} fill={paint.onPrice} fontSize={9} fontFamily={fonts.bold} textAnchor="middle">{(snapshot.active ? snapshot.cursorPrice : snapshot.close).toFixed(precision)}</SvgText>
+    <SvgText x={plotW + (width - plotW) / 2} y={markerY + 3.5} fill={paint.onPrice} fontSize={axisFontSize} fontFamily={fonts.bold} textAnchor="middle">{(snapshot.active ? snapshot.cursorPrice : snapshot.close).toFixed(precision)}</SvgText>
   </>;
 }
 
 /** Independent text updates keep React OHLC rendering out of the gesture path. */
-export function ChartReadout({ prepared, viewport, crosshair, plotW, precision, frame, axisColor, up, down, muted }: Values & { plotW: number; precision: number; frame: string; axisColor: string; up: string; down: string; muted: string }) {
+export function ChartReadout({ prepared, viewport, crosshair, plotW, precision, frame, axisColor, up, down, muted, inspectionOnly = false }: Values & { plotW: number; precision: number; frame: string; axisColor: string; up: string; down: string; muted: string; inspectionOnly?: boolean }) {
   const [reading, setReading] = useState<{ candle: PreparedChartData['candles'][number]; active: boolean } | null>(null);
   const lastSent = useSharedValue(0);
   const trailing = useSharedValue(0);
@@ -162,12 +162,13 @@ export function ChartReadout({ prepared, viewport, crosshair, plotW, precision, 
     trailing.set(withDelay(90, withTiming(1, { duration: 0 }, finished => { if (finished) scheduleOnRN(setReading, next); }), ReduceMotion.Never));
   });
   const candle = reading?.candle;
-  return <View style={{ gap: 4 }}>
+  if (inspectionOnly && !reading?.active) return null;
+  return <View pointerEvents={inspectionOnly ? 'none' : undefined} style={inspectionOnly ? { position: 'absolute', left: 8, right: 8, bottom: 32, zIndex: 2, padding: 8, borderRadius: 12, backgroundColor: '#FFFFFFF2', gap: 4 } : { gap: 4 }}>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 8, rowGap: 4, minHeight: 20 }}>
       {(['open', 'high', 'low', 'close'] as const).map((key, index) => <View key={key} style={{ flex: 1, flexBasis: plotW < 220 ? '44%' : '20%', flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-        <Label size={9} color={muted}>{['O', 'H', 'L', 'C'][index]}</Label><Label size={9} color={key === 'close' && candle ? candle.close >= candle.open ? up : down : muted}>{candle ? `${key === 'close' ? candle.close >= candle.open ? '↗ ' : '↘ ' : ''}${candle[key].toFixed(precision)}` : '—'}</Label>
+        <Label size={inspectionOnly ? 11 : 9} color={muted}>{['O', 'H', 'L', 'C'][index]}</Label><Label size={inspectionOnly ? 11 : 9} color={key === 'close' && candle ? candle.close >= candle.open ? up : down : muted}>{candle ? `${key === 'close' ? candle.close >= candle.open ? '↗ ' : '↘ ' : ''}${candle[key].toFixed(precision)}` : '—'}</Label>
       </View>)}
     </View>
-    {candle && <Label size={9} color={axisColor}>{reading?.active ? 'Selected bar' : 'Latest visible bar'} · {frame === '1D' ? `${new Date(candle.time).toISOString().slice(0, 10)} · UTC date anchor` : `${new Date(candle.time).toISOString().slice(0, 16).replace('T', ' ')} UTC · open time`}</Label>}
+    {candle && <Label size={inspectionOnly ? 11 : 9} color={axisColor}>{reading?.active ? 'Selected bar' : 'Latest visible bar'} · {frame === '1D' ? `${new Date(candle.time).toISOString().slice(0, 10)} · UTC date anchor` : `${new Date(candle.time).toISOString().slice(0, 16).replace('T', ' ')} UTC · open time`}</Label>}
   </View>;
 }

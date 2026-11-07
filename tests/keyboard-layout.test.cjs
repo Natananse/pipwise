@@ -57,6 +57,11 @@ function design(platform, width = 390, segments = ['disclaimer']) {
     '../lib/workspace': { useWorkspace: () => ({ storageError: '' }) },
     './AppLogo': { AppLogo: 'AppLogo' },
     './ScreenSystemBars': { ScreenSystemBars: 'ScreenSystemBars', ModalSystemBars: 'ModalSystemBars' },
+    './TradePresentation': {
+      TradeSurface: 'TradeSurface', TradeTopBar: 'TradeTopBar', TradeAssetTile: 'TradeAssetTile',
+      TradeSparkline: 'TradeSparkline', TradeHeroQuote: 'TradeHeroQuote', TradeChartCard: 'TradeChartCard',
+      TradeFooter: 'TradeFooter', TradeActionButton: 'TradeActionButton', TradeSkeleton: 'TradeSkeleton',
+    },
   });
 }
 

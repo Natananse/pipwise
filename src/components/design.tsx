@@ -9,6 +9,7 @@ import { useWorkspace } from '../lib/workspace';
 import { AppLogo } from './AppLogo';
 import { ModalSystemBars, ScreenSystemBars } from './ScreenSystemBars';
 export { ScreenSystemBars };
+export { TradeSurface, TradeTopBar, TradeAssetTile, TradeSparkline, TradeHeroQuote, TradeChartCard, TradeFooter, TradeActionButton, TradeSkeleton } from './TradePresentation';
 // Compatibility for screens outside this restyle; new screens use colors directly.
 export const tokens = { space: 24, radius: 24, lime: '#C8F169', navy: '#0D1011', red: '#B83A33', green: '#117A4B' };
 export function Icon({ name, size = 20, color }: { name: keyof typeof Ionicons.glyphMap; size?: number; color?: string }) {
