@@ -2,13 +2,15 @@
 
 The current release target is **Android only**. Android testers receive a standalone APK install link; Google Play distribution uses a production build. Apple Developer membership and Apple sign-in are not required for this Android release. The optional iPhone/TestFlight instructions below are for a future iOS release.
 
+**Current release status — 9 November 2026:** release source `9a9496e` retains app code from `331c1aa` and **Trade UI: Rotate 1**. The [preview APK](https://expo.dev/accounts/natananse/projects/pipwise/builds/7cb6a82c-1228-47cd-a6b9-4fcb3eaae214) is finished as version **1.0.0 / code 8**; the [production AAB candidate](https://expo.dev/accounts/natananse/projects/pipwise/builds/ea94cdee-66de-40a1-a4d3-15963e51fcb3) is finished as **1.0.0 / code 9**. Downloaded-artifact static checks pass; see [ANDROID_RELEASE_VERIFICATION.md](ANDROID_RELEASE_VERIFICATION.md). Physical-phone QA and service prerequisites remain incomplete. See [FINAL_RELEASE_STATUS.md](FINAL_RELEASE_STATUS.md) for current acceptance evidence and owner prerequisites, and [TRADING_ROTATION.md](TRADING_ROTATION.md) for the installation/rotation/full-screen/keyboard checklist. The dated builds below are historical.
+
 These builds contain the JavaScript bundle and run without your computer, Metro, or port 8081. Development onboarding previews are disabled in both release profiles.
 
-Complete [the manual least-privilege rollout](DATA_LAYER_LEAST_PRIVILEGE.md) before deploying this source. All mobile profiles use the public-only EAS `production` environment; hosted server credentials stay in `preview`. Existing APK build 5 lacks the new live-session header and must be rebuilt after the matching backend/database setup.
+Complete [the manual least-privilege rollout](DATA_LAYER_LEAST_PRIVILEGE.md) before deploying this source. All mobile profiles use the public-only EAS `production` environment; hosted server credentials stay in `preview`. Historical APK build 5 lacks the new live-session header; use a current rebuilt APK after the matching backend/database setup.
 
 Browser beta: **https://pipwise--beta.expo.app**. Local source changes do not update this website or an existing APK. Deploy the web export and create new native builds when preparing a release.
 
-The 2026-11-05 beta deployment includes the free Chart coach workflow and authenticated feedback API. Android preview **1.0.0, version code 4** also finished successfully: [install/build page](https://expo.dev/accounts/natananse/projects/pipwise/builds/5386bc64-e718-49a3-aec5-bb451b1c838c). Automatic AI is explicitly disabled in the preview hosting environment. Physical-device signup, file-picker and trade gesture checks remain to be performed.
+**Historical 5 November baseline:** that beta deployment included the free Chart coach workflow and authenticated feedback API. Android preview **1.0.0, version code 4** finished successfully: [historical build page](https://expo.dev/accounts/natananse/projects/pipwise/builds/5386bc64-e718-49a3-aec5-bb451b1c838c). Automatic AI was explicitly disabled in that preview hosting environment. This build predates the current scoped-session backend requirements, bright Trade, chart gestures and Rotate 1 native changes; use the new artifact for acceptance. Physical-device signup, file-picker and trade checks still require current evidence.
 
 ## 1. Connect the build account
 

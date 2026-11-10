@@ -1,0 +1,92 @@
+[
+  {
+    "file": "onboarding-language.png",
+    "size": [
+      1080,
+      2400
+    ],
+    "capture_sha256": "069954e0b3fdd330f4fe5e16ef9d8441b1b963f9e9ca0769eadbe53d6cbaaddd",
+    "rgb_png_sha256": "b10c7edbc8e826960ef1131b0e3c9b1f26233bbf9766197e718ac3849471d43a"
+  },
+  {
+    "file": "onboarding-arabic-portrait.png",
+    "size": [
+      1080,
+      2400
+    ],
+    "capture_sha256": "cf3d666b20ac8f495154f30ae94eb3f8630d4696bfcdbe3627281c878f991163",
+    "rgb_png_sha256": "8aef8117adacf8778237098b42bca99760c026440b50b4b5f49bcd09d250db42"
+  },
+  {
+    "file": "onboarding-resumed.png",
+    "size": [
+      1080,
+      2400
+    ],
+    "capture_sha256": "1c29354dfa06de0ec75827e01bd9b79335b43c206ec68d63130349e29401c196",
+    "rgb_png_sha256": "6b808d9da43982be51fb14112ad5866b9e84f010812377c6bb3f96c4524922e7"
+  },
+  {
+    "file": "landscape-trade.png",
+    "size": [
+      2400,
+      1080
+    ],
+    "capture_sha256": "f250070fd795f48a414c0f81555b3c6a8acc209a7118d6b2404dc95efe8be34a",
+    "rgb_png_sha256": "952cc969b0bc958485c50ee41c5e15fc027f32dcf96db287bf7a9457d1113ffa"
+  },
+  {
+    "file": "landscape-keyboard.png",
+    "size": [
+      2400,
+      1080
+    ],
+    "capture_sha256": "782b03173be7f24158166a6961fbebbb3b1ab1fcd8f72fb1733868ecf765ad96",
+    "rgb_png_sha256": "c46c9eec92818a1d8789e936b041fd8c3c3d8eff1d964d3f8ac548d99d6d4318"
+  },
+  {
+    "file": "order-after-rotation.png",
+    "size": [
+      1080,
+      2400
+    ],
+    "capture_sha256": "6d05a2afbe4a9114ffd4c109d7fe818afd3e13ded5b837e530dfdf215e92b8fd",
+    "rgb_png_sha256": "9bf0e049d92f686965b919a53b05a5af1c8a2f4339f59aa7da55b94caf7c07ca"
+  },
+  {
+    "file": "order-risk.png",
+    "size": [
+      1080,
+      2400
+    ],
+    "capture_sha256": "2ea26ad441627ac63dcc98544dcba0f273f2cfdd7f1caeafa1e90a6808fe8437",
+    "rgb_png_sha256": "2a535c06d7a2121e00156cb291f03c34d9efd6046498218cd507667b31796a0d"
+  },
+  {
+    "file": "chart-fullscreen.png",
+    "size": [
+      2400,
+      1080
+    ],
+    "capture_sha256": "745b4180e49d536063181d759548ed1f8967854a9bf53d70c63c2b631b07ed7d",
+    "rgb_png_sha256": "a00867f95f6493240e1c6c203ba818fb6b33ec143e327bdd32cda64fed4717e3"
+  },
+  {
+    "file": "settings-build8.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "capture_sha256": "be135c183ff5fa253489ddb34947930f3943e26d07293a2d4fb15d0ae411fd9f",
+    "rgb_png_sha256": "0c1de21d378a88b8dca45f87a80b5369250ec5615f5a593317767ff48f6ba1e9"
+  },
+  {
+    "file": "order-review-dock-overlap.png",
+    "size": [
+      1080,
+      1920
+    ],
+    "capture_sha256": "b7d49a43364f059c2ea43d0b1bacc1378cc643cb600f2d242b2291ce8e7b250d",
+    "rgb_png_sha256": "10c7a6372b68d332abb0083dd3f30489160257188b133eb6fa89a0dc4cabbd4b"
+  }
+]

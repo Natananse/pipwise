@@ -140,6 +140,8 @@ Choose the current form category that accurately fits that explanation rather th
 
 ## Screenshots and graphics to prepare
 
+**9 November update:** four real 1080×1920 RGB screenshot candidates from installed APK **1.0.0 / code 8**, plus Settings version evidence, are saved in [assets/play-store/screenshots](../assets/play-store/screenshots/README.md). They cover Trade, order review, Learn and Analyse; they are not a completed device sign-off or an approved/uploaded listing. See the capture notes and [native acceptance observations](ANDROID_NATIVE_SMOKE_TEST.md) before final selection. The icon and feature graphic remain in [assets/play-store](../assets/play-store/README.md).
+
 Capture these **six real phone screens** from the final standalone release build, using an account/demo workspace without personal contact details. Preserve simulated-data labels and avoid unfinished paid/AI screens.
 
 | Order | Screen | Show | Suggested alt text |
