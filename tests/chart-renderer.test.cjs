@@ -212,6 +212,19 @@ test('fractional windows use the same final visible candle for the price marker 
   assert.ok(Math.abs(badgeRect.props.y + 12 - priceLine.props.animatedProps.y1) < 1e-9);
 });
 
+test('the chart permits vertical browser scrolling and centers inspection on a single candle', () => {
+  const h = fixture({ length: 1, viewport: { start: 0, count: 1 } });
+  const detector = walk(h.plot.tree, node => node.type === 'GestureDetector')[0];
+  assert.equal(detector.props.touchAction, 'pan-y', 'Vertical touch scrolling must remain available to the containing page');
+  h.frame(100, values => { values.crosshair.value = { active: true, x: 8, y: 80 }; });
+  const crosshair = walk(h.plot.tree, node => node.type === 'Animated.Line' && node.props.stroke === h.paint.axis && node.props.y1 === 16)[0];
+  const point = walk(h.plot.tree, node => node.type === 'Animated.Circle')[0];
+  assert.equal(crosshair.props.animatedProps.opacity, 1);
+  assert.equal(crosshair.props.animatedProps.x1, 140);
+  assert.equal(crosshair.props.animatedProps.x1, point.props.animatedProps.cx, 'Inspection and the rendered candle must share one projection');
+  assert.match(text(h.readout.tree), /Selected bar.*2026-11-01/);
+});
+
 test('daily chart axes show calendar dates and the readout names its UTC date anchor', () => {
   const h = fixture({ viewport: { start: 0, count: 12 }, frame: '1D' });
   const ticks = walk(h.axes.tree, node => node.type === 'Text' && node.props.y === 292).map(text);

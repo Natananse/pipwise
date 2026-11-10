@@ -84,11 +84,13 @@ test('maintenance diagnostics expose safe SQLSTATEs without driver messages or c
   });
 });
 
-test('scheduler uses only its dedicated secret and the env template contains no configured values', () => {
+test('scheduler uses only its dedicated secret and the env template keeps secrets blank with scheduling disabled', () => {
   const workflow = fs.readFileSync('.github/workflows/data-retention.yml', 'utf8');
   assert.equal((workflow.match(/RETENTION_JOB_DATABASE_URL: \$\{\{ secrets\.RETENTION_JOB_DATABASE_URL \}\}/g) || []).length, 2);
   assert.doesNotMatch(workflow, /secrets\.DATABASE_URL\b|APP_RUNTIME_DATABASE_URL|MIGRATOR_DATABASE_URL/);
   const assignments = fs.readFileSync('.env.example', 'utf8').split('\n').filter(line => /^[A-Z][A-Z0-9_]*=/.test(line));
-  assert(assignments.every(line => /^[A-Z][A-Z0-9_]*=$/.test(line)));
+  assert(assignments.includes('PIPWISE_RETENTION_SCHEDULE_ENABLED=0'));
+  assert(assignments.every(line => line === 'PIPWISE_RETENTION_SCHEDULE_ENABLED=0' || /^[A-Z][A-Z0-9_]*=$/.test(line)));
+  assert(assignments.includes('PIPWISE_RETENTION_CHECK_SECRET='));
   for (const name of ['APP_RUNTIME_DATABASE_URL', 'MIGRATOR_DATABASE_URL', 'RETENTION_JOB_DATABASE_URL']) assert(assignments.includes(`${name}=`));
 });

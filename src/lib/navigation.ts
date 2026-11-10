@@ -3,12 +3,13 @@ export const navigationLayout = {
   wideBreakpoint: 1050,
   railWidth: 108,
   dockHeight: 70,
+  compactDockHeight: 52,
   dockBottomGap: 12,
   dockSideGap: 16,
 };
 
-export const tabBarClearance = (bottomInset: number) =>
-  navigationLayout.dockHeight + navigationLayout.dockBottomGap + bottomInset;
+export const tabBarClearance = (bottomInset: number, compact = false) =>
+  (compact ? navigationLayout.compactDockHeight : navigationLayout.dockHeight) + navigationLayout.dockBottomGap + bottomInset;
 
 type BottomClearance = {
   bottomInset: number;

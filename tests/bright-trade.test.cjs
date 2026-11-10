@@ -39,7 +39,7 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
   const { createDemoMarket } = load('src/lib/demoMarket.ts', { './market': market, './marketTypes': marketTypes });
   const feed = createDemoMarket({ now: () => Date.UTC(2026, 10, 5, 12), seed: 71 });
   const instances = new Map(), calls = [], animations = [], backListeners = new Set(), chromeCalls = [];
-  let probeIdentity = 0, focused = true;
+  let probeIdentity = 0, focused = true, keyboardVisible = false;
   let current, tree, pending, visited, dirty, paused = false, haptics = 0, demoSubscriptions = 0;
   const workspace = { loaded, wallet: { cash: 10000, positions: [], history: [] }, favorites: [...favorites], storageError,
     toggle(key, value) {
@@ -120,7 +120,7 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     '../../lib/navigation': navigation, '../../lib/simulator': { summary: () => ({ equity: workspace.wallet.cash }) },
     '../../lib/theme': theme, '../../lib/useReducedMotion': motion, '../../lib/workspace': { useWorkspace: () => workspace },
     '../../lib/uiPreferences': { useUiPreferences: () => ({ immersive: true }) },
-    '../../lib/useTradingWindow': { useTradingWindow: () => ({ width, height, fontScale: 1, landscape: width > height, keyboardVisible: false, onInputFocus() {}, onInputBlur() {} }) },
+    '../../lib/useTradingWindow': { useTradingWindow: () => ({ width, height, fontScale: 1, landscape: width > height, keyboardVisible, onInputFocus() {}, onInputBlur() {} }) },
     '../../lib/tradingLayout': load('src/lib/tradingLayout.ts'),
     '../../lib/tradeChrome': { tradeChrome: { configure: (...args) => chromeCalls.push(args), release() {}, reveal() {}, hide() {} } },
     '../../lib/demoMarketProvider': { useDemoMarket: () => {
@@ -175,6 +175,7 @@ function fixture({ params = {}, loaded = true, ready = true, favorites = ['EUR/U
     frame(next) { all(tree).find(node => node.type === 'TradingChart').props.external.onTimeframeChange(next); render(); },
     back() { const handled = [...backListeners].some(callback => callback()); render(); return handled; },
     focus(next) { focused = next; render(); },
+    keyboard(next) { keyboardVisible = next; render(); },
   };
 }
 
@@ -268,11 +269,34 @@ test('safe insets and dock clearance remain reserved with one scrollable inline 
   const header = h.nodes('View').find(node => style(node.props.style).paddingTop === 38);
   assert.ok(header, 'Header retains the top safe inset plus spacing');
   const content = h.nodes('ScrollView').find(node => !node.props.horizontal);
-  assert.ok(content.props.contentContainerStyle.paddingBottom >= h.navigation.tabBarClearance(24));
+  const body = h.nodes('View').find(node => typeof node.props.onLayout === 'function');
+  assert.equal(style(body.props.style).paddingBottom, h.navigation.tabBarClearance(24) + 8,
+    'Reserve navigation outside the scroll viewport so it cannot cover the chart or order actions');
+  assert.equal(content.props.contentContainerStyle.paddingBottom, 16);
+  assert.equal(style(content.props.style).flex, 1);
   assert.equal(content.props.automaticallyAdjustKeyboardInsets, false);
   assert.equal(h.nodes('KeyboardAvoidingView').length, 1);
   assert.equal(h.node('OrderBottomSheet').props.embedded, true);
   assert.equal(h.nodes('OrderBottomSheet').length, 1);
+});
+
+test('Trade viewport reserves the compact dock, side rail and fullscreen system inset after resize', () => {
+  const h = fixture();
+  const reservedBottom = () => style(h.nodes('View').find(node => typeof node.props.onLayout === 'function').props.style).paddingBottom;
+  h.resize(760, 390);
+  assert.equal(reservedBottom(), h.navigation.tabBarClearance(24, true) + 8);
+  h.resize(1200, 800);
+  assert.equal(reservedBottom(), 24 + 12, 'The side rail does not reserve a bottom dock');
+  h.fullscreen(true);
+  assert.equal(reservedBottom(), 24 + 8, 'Fullscreen leaves breathing room above the system bottom inset');
+  h.resize(390, 844);
+  assert.equal(reservedBottom(), 24 + 8);
+  h.fullscreen(false);
+  assert.equal(reservedBottom(), h.navigation.tabBarClearance(24) + 8);
+  h.keyboard(true);
+  assert.equal(reservedBottom(), 8, 'The hidden dock is not reserved again above the keyboard');
+  h.keyboard(false);
+  assert.equal(reservedBottom(), h.navigation.tabBarClearance(24) + 8);
 });
 
 test('repeated rotation and fullscreen preserve one chart/order instance, selected asset and timeframe', () => {

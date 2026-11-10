@@ -14,6 +14,17 @@ WITH checks(name, passes) AS (
   UNION ALL SELECT 'no memberships for any scoped role', NOT EXISTS (
     SELECT 1 FROM pg_auth_members
     WHERE member IN ('migrator'::regrole,'app_runtime'::regrole,'retention_job'::regrole))
+  UNION ALL SELECT 'administrator explicit SET without inherited helper privileges',
+    pg_has_role('neondb_owner','migrator','SET')
+    AND NOT pg_has_role('neondb_owner','migrator','USAGE')
+    AND EXISTS (SELECT 1 FROM pg_auth_members
+      WHERE roleid = 'migrator'::regrole AND member = 'neondb_owner'::regrole
+        AND grantor = 'neondb_owner'::regrole
+        AND NOT admin_option AND NOT inherit_option AND set_option)
+    AND EXISTS (SELECT 1 FROM pg_auth_members
+      WHERE roleid = 'migrator'::regrole AND member = 'neondb_owner'::regrole
+        AND grantor <> 'neondb_owner'::regrole
+        AND admin_option AND NOT inherit_option AND NOT set_option)
   UNION ALL SELECT 'no database CREATE or TEMP for scoped roles', bool_and(
     NOT has_database_privilege(role_name, current_database(), 'CREATE')
     AND NOT has_database_privilege(role_name, current_database(), 'TEMP'))

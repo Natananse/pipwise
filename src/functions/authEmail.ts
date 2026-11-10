@@ -1,6 +1,7 @@
 /// <reference types="node" />
 // Optional server-only relay. The app continues using its existing London Auth
-// and delivery ledger; a relay project's injected service credentials are ignored.
+// and delivery ledger; the deployment overrides injected database URLs with
+// the same restricted application login used by APP_RUNTIME_DATABASE_URL.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { runtimeDatabase } from '../server/database';
 import { createAuthEmailDelivery } from '../server/authEmailDelivery';

@@ -54,7 +54,7 @@ VALUES
 -- SET-role capability is granted only inside this rollback transaction. Actual
 -- independent password logins must also be tested privately by the owner.
 GRANT app_runtime, retention_job TO neondb_owner
-  WITH ADMIN TRUE, INHERIT FALSE, SET TRUE;
+  WITH INHERIT FALSE, SET TRUE GRANTED BY neondb_owner;
 SET LOCAL ROLE retention_job;
 DO $retention_checks$
 DECLARE affected integer;

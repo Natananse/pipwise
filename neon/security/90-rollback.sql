@@ -81,7 +81,9 @@ REVOKE CONNECT ON DATABASE neondb FROM migrator, app_runtime, retention_job;
 ALTER ROLE migrator IN DATABASE neondb RESET search_path;
 ALTER ROLE app_runtime IN DATABASE neondb RESET search_path;
 ALTER ROLE retention_job IN DATABASE neondb RESET search_path;
-REVOKE migrator FROM neondb_owner;
+-- Remove only our explicit SET grant, retaining PostgreSQL's automatic
+-- bootstrap-granted ADMIN membership for managing the disabled role.
+REVOKE migrator FROM neondb_owner GRANTED BY neondb_owner;
 COMMIT;
 -- The three disabled roles may retain future ownership dependencies. Do not
 -- force-drop them. Privately revoke/replace unused credentials after recovery.

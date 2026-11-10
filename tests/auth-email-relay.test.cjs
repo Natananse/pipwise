@@ -21,6 +21,7 @@ const fixtureEnv = {
   PIPWISE_AUTH_DATABASE_URL: 'postgresql://legacy_owner:must-not-be-used@origin.example.test/origin',
   // These injected relay-project values must never select the app's identity or ledger.
   DATABASE_URL: 'postgresql://relay:unused@relay.example.test/relay',
+  DATABASE_URL_UNPOOLED: 'postgresql://relay_owner:must-not-be-used@relay.example.test/relay',
   NEON_AUTH_BASE_URL: 'https://relay.example.test/auth',
   NEON_AUTH_JWKS_URL: 'https://relay.example.test/auth/.well-known/jwks.json',
 };
@@ -280,15 +281,28 @@ test('optional policy declares only authmail and requires explicit gate and stro
   const fn = policy.functions.authmail;
   assert.equal(fn.source, 'src/functions/authEmail.ts');
   assert.equal(fn.env.PIPWISE_AUTH_EMAIL_ENABLED, '0');
-  assert.equal(Object.keys(fn.env).length, 7);
+  assert.equal(Object.keys(fn.env).length, 9);
   assert.equal(Object.hasOwn(fn.env, 'PIPWISE_AUTH_EMAIL_HEALTH_TOKEN'), false);
-  assert.equal(Object.keys(fn.env).some(key => key.startsWith('NEON_') || key === 'DATABASE_URL'), false);
+  assert.equal(Object.keys(fn.env).some(key => key.startsWith('NEON_')), false);
   assert.equal(fn.env.APP_RUNTIME_DATABASE_URL, fixtureEnv.APP_RUNTIME_DATABASE_URL);
+  assert.equal(fn.env.DATABASE_URL, fixtureEnv.APP_RUNTIME_DATABASE_URL);
+  assert.equal(new URL(fn.env.DATABASE_URL_UNPOOLED).username, 'app_runtime');
+  assert.equal(new URL(fn.env.DATABASE_URL_UNPOOLED).hostname, new URL(fixtureEnv.APP_RUNTIME_DATABASE_URL).hostname);
+  assert.notEqual(fn.env.DATABASE_URL, fixtureEnv.DATABASE_URL);
   assert.equal(Object.hasOwn(fn.env, 'PIPWISE_AUTH_DATABASE_URL'), false);
-  for (const name of Object.keys(fn.env)) {
+  for (const name of Object.keys(fn.env).filter(name => name !== 'DATABASE_URL' && name !== 'DATABASE_URL_UNPOOLED')) {
     assert.throws(() => load('neon.email.ts', imports, { ...env, [name]: '' }), /Missing relay configuration/);
   }
   assert.throws(() => load('neon.email.ts', imports, { ...env, PIPWISE_AUTH_EMAIL_ENABLED: 'true' }), /explicitly 0 or 1/);
   assert.throws(() => load('neon.email.ts', imports, { ...env, PIPWISE_AUTH_EMAIL_RELAY_SECRET: 'short' }), /at least 43 printable characters/);
   assert.throws(() => load('neon.email.ts', imports, { ...env, APP_RUNTIME_DATABASE_URL: fixtureEnv.DATABASE_URL }), /app_runtime database role/);
+
+  const pooled = 'postgresql://app_runtime:synthetic@ep-origin-pooler.example.test/neondb?sslmode=require';
+  const overrides = load('neon.email.ts', imports, { ...env, APP_RUNTIME_DATABASE_URL: pooled }).default.functions.authmail.env;
+  assert.equal(overrides.DATABASE_URL, pooled, 'Injected pooled credentials must use the scoped application login');
+  const direct = new URL(overrides.DATABASE_URL_UNPOOLED);
+  assert.equal(direct.username, 'app_runtime');
+  assert.equal(direct.hostname, 'ep-origin.example.test');
+  assert.equal(direct.pathname, '/neondb');
+  assert.equal(direct.searchParams.get('sslmode'), 'require');
 });

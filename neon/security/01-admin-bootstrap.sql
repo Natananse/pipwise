@@ -74,9 +74,12 @@ CREATE ROLE app_runtime LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
 CREATE ROLE retention_job LOGIN NOINHERIT NOSUPERUSER NOCREATEDB NOCREATEROLE
   NOREPLICATION NOBYPASSRLS;
 
--- Administrator can create new helper objects AS migrator. Neither service role
--- is a member of migrator, neon_auth, neon_superuser, or the other service role.
-GRANT migrator TO neondb_owner WITH ADMIN TRUE, INHERIT FALSE, SET TRUE;
+-- PostgreSQL already gives the creator a bootstrap-granted ADMIN membership.
+-- Preserve it; a circular ADMIN self-grant fails with SQLSTATE 0LP01. Add only
+-- an explicit SET membership under this administrator's own grantor identity.
+-- Neither service role belongs to migrator, Auth, or another service role.
+GRANT migrator TO neondb_owner WITH INHERIT FALSE, SET TRUE
+  GRANTED BY neondb_owner;
 GRANT CONNECT ON DATABASE neondb TO migrator, app_runtime, retention_job;
 
 -- PUBLIC TEMP is inherited by every login; a direct runtime revoke cannot deny
@@ -116,5 +119,6 @@ ALTER ROLE app_runtime IN DATABASE neondb SET search_path = pg_catalog, pg_temp;
 ALTER ROLE retention_job IN DATABASE neondb SET search_path = pg_catalog, pg_temp;
 COMMIT;
 
--- Passwords are deliberately unset. Privately use psql \password <role>.
+-- Passwords are deliberately unset. Initialize them through a private secured
+-- administrator connection; Neon requires plaintext input, not SCRAM verifiers.
 -- Continue with 02-app-permissions-and-helpers.sql as neondb_owner.

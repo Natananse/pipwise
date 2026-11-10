@@ -4,7 +4,7 @@ The current [rotation stage](TRADING_ROTATION.md) adds portrait/landscape and fu
 
 This stage adds gestures to the in-app SVG chart: horizontal pinch zoom, horizontal pan, momentum, double-tap zoom, reset, and long-press candle inspection. It also keeps drawing inside the plot and distinguishes rising hollow candles from falling filled candles.
 
-Fullscreen and rotation, provider navigation restrictions, and the Trade layout redesign belong to later stages. The provider widget keeps its own interactions.
+Fullscreen, rotation and the Trade layout redesign are implemented in the linked [rotation stage](TRADING_ROTATION.md). This checklist still covers the in-app SVG chart; the provider widget keeps its own interactions.
 
 ## Implementation and dependencies
 
@@ -13,6 +13,10 @@ Fullscreen and rotation, provider navigation restrictions, and the Trade layout 
 - `src/components/useChartGestures.ts` owns recognition, momentum, and cancellation.
 - `src/components/InteractiveChartPlot.tsx` uses a scoped gesture root and a bounded number of animated SVG paths. Text readouts cross to React separately from the plot geometry.
 - `src/components/TradingChart.tsx` connects the existing chart controls and loading states to those pieces.
+
+Loading, errors and empty series hide OHLC and disable viewport tools. Internal sample requests are tied to the asset/timeframe so a newly selected asset cannot display the prior asset's candles while it loads. Opening a timeframe or tools sheet disables the plot recognizers until that sheet closes. Single-candle inspection stays aligned with the centered candle.
+
+The browser detector uses `touchAction="pan-y"` so a vertical touch swipe can scroll the containing page while horizontal chart dragging remains available, following the [Gesture Handler web scrolling guide](https://docs.swmansion.com/react-native-gesture-handler/docs/guides/swipe-and-scroll/). Native touch arbitration and browser pinch behavior still need the acceptance checks below.
 
 The SDK58 dependencies are `react-native-gesture-handler` `~3.3.0`, `react-native-reanimated` `4.7.1`, and `react-native-worklets` `0.13.0`. Expo's Babel preset configures the worklet plugin automatically. The gesture root surrounds the chart; startup does not need a new global wrapper. See the matching [Expo gesture-handler docs](https://docs.expo.dev/versions/v58.0.0/sdk/gesture-handler/) and [Expo Reanimated docs](https://docs.expo.dev/versions/v58.0.0/sdk/reanimated/).
 

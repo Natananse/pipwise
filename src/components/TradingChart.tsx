@@ -53,6 +53,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const chartLevels = tradePresentation ? keyLevels.map(level => ({ ...level, color: level.label.startsWith('Support') ? tradeColors.up : tradeColors.sub })) : keyLevels;
   const [demoCandles, setCandles] = useState<Candle[]>([]);
   const [demoFrame, setDemoFrame] = useState('1h');
+  const [demoIdentity, setDemoIdentity] = useState('');
   const [mode, setMode] = useState(referenceUI && !external?.moving ? 'Line' : 'Candles');
   const [demoError, setError] = useState('');
   const [demoLoading, setLoading] = useState(true);
@@ -65,8 +66,10 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
   const [toolbarHeight, setToolbarHeight] = useState(44);
   const candles = external ? external.candles : demoCandles;
   const frame = external?.timeframe ?? demoFrame;
-  const error = external?.error ?? demoError;
-  const loading = external?.loading ?? demoLoading;
+  const chartIdentity = `${asset.symbol}:${frame}`;
+  const error = external?.error ?? (demoIdentity === chartIdentity ? demoError : '');
+  const loading = external?.loading ?? (demoLoading || demoIdentity !== chartIdentity);
+  const chartAvailable = !loading && !error && candles.length > 0;
   const sample = external?.sample ?? true;
   const externalMode = !!external;
   const setFrame = (next: string) => {
@@ -80,43 +83,45 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
     marketData.candles(asset, frame).then(data => {
       if (active) {
         setCandles(data);
+        setDemoIdentity(chartIdentity);
         setError('');
         setLoading(false);
       }
     }).catch(() => {
       if (active) {
         setError('Chart unavailable. Try loading the simulated series again.');
+        setDemoIdentity(chartIdentity);
         setLoading(false);
       }
     });
     return () => { active = false; };
-  }, [asset, frame, retry, externalMode]);
+  }, [asset, chartIdentity, frame, retry, externalMode]);
 
   const fixedHeight = Math.max(180, plotHeight ?? (small ? 180 : 300));
   const toolbarSpace = referenceUI ? toolbarHeight + 8 : 0;
   const h = fill ? Math.max(80, (availableHeight || fixedHeight + toolbarSpace) - toolbarSpace) : fixedHeight;
   const axisWidth = Math.max(tradePresentation ? 80 : 72, asset.price.toFixed(asset.precision).length * 7 + 16);
   const plotW = Math.max(80, width - axisWidth);
-  const controller = useChartController({ candles, identity: `${asset.symbol}:${frame}`, initialCount: referenceUI ? 80 : 36 });
+  const controller = useChartController({ candles, identity: chartIdentity, initialCount: referenceUI ? 80 : 36 });
   const focused = useIsFocused();
   const reducedMotion = useReducedMotion();
   const { gesture, cancelInteractions } = useChartGestures({
     viewport: controller.viewport, candles: controller.candles, crosshair: controller.crosshair,
     interacting: controller.interacting, plotWidth: Math.max(1, plotW - 16), plotHeight: Math.max(1, h - 48), left: 8, top: 16,
-    enabled: focused && !loading && !error && candles.length > 0,
+    enabled: focused && chartAvailable && !controlsOpen && !framesOpen,
     reducedMotion: reducedMotion !== false,
   });
   useEffect(() => { cancelInteractions(); }, [asset.symbol, frame, cancelInteractions]);
   const act = (action: () => void) => { cancelInteractions(); action(); };
   const reload = () => { if (external) external.onRetry(); else { setLoading(true); setError(''); setRetry(value => value + 1); } };
   const tools: { label: string; icon: keyof typeof Ionicons.glyphMap; disabled: boolean; onPress: () => void }[] = [
-    { label: 'Pan to earlier candles', icon: 'chevron-back', disabled: loading || !controller.controls.canEarlier, onPress: () => act(controller.panEarlier) },
-    { label: 'Zoom out', icon: 'remove', disabled: loading || !controller.controls.canZoomOut, onPress: () => act(controller.zoomOut) },
-    { label: 'Zoom in', icon: 'add', disabled: loading || !controller.controls.canZoomIn, onPress: () => act(controller.zoomIn) },
-    { label: 'Pan to later candles', icon: 'chevron-forward', disabled: loading || !controller.controls.canLater, onPress: () => act(controller.panLater) },
-    { label: 'Reset chart view', icon: 'refresh', disabled: loading || !candles.length, onPress: () => act(controller.reset) },
+    { label: 'Pan to earlier candles', icon: 'chevron-back', disabled: !chartAvailable || !controller.controls.canEarlier, onPress: () => act(controller.panEarlier) },
+    { label: 'Zoom out', icon: 'remove', disabled: !chartAvailable || !controller.controls.canZoomOut, onPress: () => act(controller.zoomOut) },
+    { label: 'Zoom in', icon: 'add', disabled: !chartAvailable || !controller.controls.canZoomIn, onPress: () => act(controller.zoomIn) },
+    { label: 'Pan to later candles', icon: 'chevron-forward', disabled: !chartAvailable || !controller.controls.canLater, onPress: () => act(controller.panLater) },
+    { label: 'Reset chart view', icon: 'refresh', disabled: !chartAvailable, onPress: () => act(controller.reset) },
   ];
-  const readout = !small && (!referenceUI || external) ? <ChartReadout prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} plotW={plotW} precision={asset.precision} frame={frame} axisColor={axisColor} up={tradePresentation ? tradeColors.up : colors.up} down={tradePresentation ? tradeColors.down : colors.down} muted={tradePresentation ? tradeColors.sub : colors.sub} inspectionOnly={tradePresentation} /> : null;
+  const readout = chartAvailable && !small && (!referenceUI || external) ? <ChartReadout prepared={controller.prepared} viewport={controller.viewport} crosshair={controller.crosshair} plotW={plotW} precision={asset.precision} frame={frame} axisColor={axisColor} up={tradePresentation ? tradeColors.up : colors.up} down={tradePresentation ? tradeColors.down : colors.down} muted={tradePresentation ? tradeColors.sub : colors.sub} inspectionOnly={tradePresentation} /> : null;
 
   return <View onLayout={fill ? event => setAvailableHeight(event.nativeEvent.layout.height) : undefined} style={{ gap: 8, flex: fill ? 1 : undefined, minHeight: fill ? 0 : undefined }}>
     {referenceUI && <View onLayout={fill ? event => setToolbarHeight(event.nativeEvent.layout.height) : undefined}><Row style={{ justifyContent: chartTerminal ? 'space-between' : 'flex-end', gap: controlGap, flexWrap: 'wrap' }}>
@@ -125,7 +130,7 @@ export function TradingChart({ asset, small = false, plotHeight, compactControls
         <Pressable accessibilityRole="button" accessibilityLabel="Change chart timeframe" onPress={() => act(() => setFramesOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, paddingHorizontal: tradePresentation ? tradeSpace.sm : chartTerminal ? 11 : 14, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, flexDirection: 'row', gap: 8, alignItems: 'center', opacity: pressed ? 0.6 : 1 })}><Label bold size={12} color={controlColor}>{frame}</Label><Ionicons name="chevron-down" size={12} color={controlColor} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Switch to ${mode === 'Line' ? 'candlestick' : 'line'} chart`} onPress={() => act(() => setMode(value => value === 'Line' ? 'Candles' : 'Line'))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={mode === 'Line' ? 'stats-chart-outline' : 'pulse-outline'} size={21} color={controlColor} /></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel="Chart indicators and controls" onPress={() => act(() => setControlsOpen(true))} style={({ pressed }) => ({ minHeight: chartTerminal || tradePresentation ? 44 : 42, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="color-wand-outline" size={21} color={tradePresentation ? average ? tradeColors.up : controlColor : average ? chartTerminal ? lineColor : colors.primary : controlColor} /></Pressable>
-        {!tradePresentation && <Pressable accessibilityRole="button" accessibilityLabel="Reset chart view" disabled={loading || !candles.length} accessibilityState={{ disabled: loading || !candles.length }} onPress={() => act(controller.reset)} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: 14, borderWidth: chartTerminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="refresh" size={19} color={controlColor} /></Pressable>}
+        {!tradePresentation && <Pressable accessibilityRole="button" accessibilityLabel="Reset chart view" disabled={!chartAvailable} accessibilityState={{ disabled: !chartAvailable }} onPress={() => act(controller.reset)} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: 14, borderWidth: chartTerminal ? 1 : 0, borderColor: gridColor, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name="refresh" size={19} color={controlColor} /></Pressable>}
         {onFullScreenChange && <Pressable accessibilityRole="button" accessibilityLabel={fullScreen ? 'Exit full-screen chart' : 'Open full-screen chart'} accessibilityState={{ expanded: fullScreen }} onPress={() => { cancelInteractions(true); onFullScreenChange(!fullScreen); }} style={({ pressed }) => ({ minHeight: 44, width: 44, borderRadius: controlRadius, borderWidth: chartTerminal || tradePresentation ? 1 : 0, borderColor: controlBorder, backgroundColor: controlSurface, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}><Ionicons name={fullScreen ? 'contract-outline' : 'expand-outline'} size={20} color={controlColor} /></Pressable>}
       </Row>
     </Row></View>}

@@ -44,7 +44,8 @@ export const InteractiveChartPlot = memo(function InteractiveChartPlot({ prepare
   const crossXProps = useAnimatedProps(() => {
     const view = clampViewport(viewport.value, prepared.value.candles.length);
     const index = Math.max(Math.ceil(view.start), Math.min(Math.floor(view.start + view.count - 1), Math.round(view.start + Math.max(0, Math.min(1, (crosshair.value.x - 8) / Math.max(1, plotW - 16))) * Math.max(0, view.count - 1))));
-    const x = 8 + (index - view.start) / Math.max(1, view.count - 1) * (plotW - 16);
+    const ratio = view.count > 1 ? (index - view.start) / (view.count - 1) : 0.5;
+    const x = 8 + ratio * (plotW - 16);
     return { x1: x, x2: x, opacity: crosshair.value.active ? 1 : 0 };
   });
   const crossYProps = useAnimatedProps(() => {
@@ -54,7 +55,7 @@ export const InteractiveChartPlot = memo(function InteractiveChartPlot({ prepare
   const dotProps = useAnimatedProps(() => ({ cx: geometry.value.lastX, cy: geometry.value.lastY, opacity: geometry.value.renderedBars && mode === 'Line' ? 1 : 0 }));
 
   return <GestureHandlerRootView unstable_forceActive style={{ height, width: '100%' }}>
-    <GestureDetector gesture={gesture} touchAction="none">
+    <GestureDetector gesture={gesture} touchAction="pan-y">
       <View collapsable={false} style={{ height }}>
         <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
           <Defs>

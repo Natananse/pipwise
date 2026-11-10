@@ -13,6 +13,12 @@ function requiredEnv(name: string, value: string | undefined): string {
   return value;
 }
 
+const appRuntimeDatabaseUrl = runtimeConnectionString({
+  APP_RUNTIME_DATABASE_URL: requiredEnv('APP_RUNTIME_DATABASE_URL', process.env.APP_RUNTIME_DATABASE_URL),
+});
+const directAppRuntimeDatabaseUrl = new URL(appRuntimeDatabaseUrl);
+directAppRuntimeDatabaseUrl.hostname = directAppRuntimeDatabaseUrl.hostname.replace('-pooler.', '.');
+
 // Optional relay policy only. Use an explicitly selected supported-region Free
 // project; never apply this policy to the app's existing London project.
 // The existing app server forwards original signed headers under X-PipWise-Neon-*
@@ -28,10 +34,11 @@ export default defineConfig({
         PIPWISE_AUTH_EMAIL_RELAY_SECRET: requiredEnv('PIPWISE_AUTH_EMAIL_RELAY_SECRET', process.env.PIPWISE_AUTH_EMAIL_RELAY_SECRET),
         PIPWISE_ORIGIN_AUTH_BASE_URL: requiredEnv('PIPWISE_ORIGIN_AUTH_BASE_URL', process.env.PIPWISE_ORIGIN_AUTH_BASE_URL),
         PIPWISE_ORIGIN_AUTH_JWKS_URL: requiredEnv('PIPWISE_ORIGIN_AUTH_JWKS_URL', process.env.PIPWISE_ORIGIN_AUTH_JWKS_URL),
-        // The relay uses the same restricted role as the hosted app API.
-        APP_RUNTIME_DATABASE_URL: runtimeConnectionString({
-          APP_RUNTIME_DATABASE_URL: requiredEnv('APP_RUNTIME_DATABASE_URL', process.env.APP_RUNTIME_DATABASE_URL),
-        }),
+        // Override Neon's injected relay-project owner connections as well.
+        // Application queries still use only APP_RUNTIME_DATABASE_URL.
+        APP_RUNTIME_DATABASE_URL: appRuntimeDatabaseUrl,
+        DATABASE_URL: appRuntimeDatabaseUrl,
+        DATABASE_URL_UNPOOLED: directAppRuntimeDatabaseUrl.href,
         PIPWISE_SMTP_USER: requiredEnv('PIPWISE_SMTP_USER', process.env.PIPWISE_SMTP_USER),
         PIPWISE_SMTP_APP_PASSWORD: requiredEnv('PIPWISE_SMTP_APP_PASSWORD', process.env.PIPWISE_SMTP_APP_PASSWORD),
       },

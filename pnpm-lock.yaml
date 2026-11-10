@@ -23,6 +23,9 @@ importers:
       '@neon/env':
         specifier: ^1.6.8
         version: 1.6.8
+      '@neon/functions':
+        specifier: 0.11.0
+        version: 0.11.0
       '@neondatabase/serverless':
         specifier: ^1.2.0
         version: 1.2.0
@@ -1038,6 +1041,15 @@ packages:
     resolution: {integrity: sha512-sQ1+EoI25zZpLjJCpj2PQnmGrPk5mx6nVNyAyVg5bvzVsTXs9vvj2YbVW8qR1YjXcgSZNoU/PFvhlWFBN+hrSg==}
     engines: {node: '>=20.19.0'}
     hasBin: true
+
+  '@neon/functions@0.11.0':
+    resolution: {integrity: sha512-xyIEk9aULR2nBTzyTgxljkM8aS+Ppe9oVw/t5mdqYOlY/mLFppHSZHq8hiWVDWy6Ca8oLd3loTtfVz+cZQQjsA==}
+    engines: {node: '>=20.19.0'}
+    peerDependencies:
+      hono: ^4.7.8
+    peerDependenciesMeta:
+      hono:
+        optional: true
 
   '@neon/sdk@7.7.0':
     resolution: {integrity: sha512-ncGRkf+E58UEJ3U4Y1MOo6f/fyjOqzjqa3If25uYfDK6VDmRdm7ylrpsENsdZZ3vVnAO6sDnRqMHS0jIisC8XA==}
@@ -5380,6 +5392,8 @@ snapshots:
       zod: 4.6.7
     optionalDependencies:
       '@napi-rs/keyring': 1.3.0
+
+  '@neon/functions@0.11.0': {}
 
   '@neon/sdk@7.7.0': {}
 

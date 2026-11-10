@@ -67,7 +67,7 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   const series = market.getSeries(selectedSymbol, timeframe);
   const levels = market.getLevels(selectedSymbol, timeframe);
   const wide = width > navigationLayout.wideBreakpoint;
-  const bottomSpace = fullScreen ? insets.bottom : keyboardVisible ? 8 : landscape ? insets.bottom + 68 : wide ? insets.bottom + 12 : tabBarClearance(insets.bottom) + 8;
+  const bottomSpace = fullScreen ? insets.bottom + 8 : keyboardVisible ? 8 : wide ? insets.bottom + 12 : tabBarClearance(insets.bottom, landscape) + 8;
   const paneHeight = Math.max(80, bodySize.height - bottomSpace);
   const layout = tradingLayout({ width: fullScreen ? bodySize.width : Math.min(1600, bodySize.width), height: paneHeight, insets: { top: 0, bottom: 0, left: 0, right: 0 }, landscape, fontScale, fullScreen });
   const scrollToField = () => {
@@ -123,12 +123,12 @@ function TradeWorkspace({ initialSymbol }: { initialSymbol?: string }) {
   return <TradeSurface onTouchStart={() => tradeChrome.reveal()} style={{ paddingLeft: insets.left, paddingRight: insets.right, paddingTop: fullScreen || landscape ? insets.top : 0 }}>
     <View style={{ display: fullScreen || landscape ? 'none' : 'flex' }}>{!fullScreen && !landscape && <TradeTopBar topInset={insets.top} equity={loaded && ready ? money(summary(wallet, quotes).equity) : '—'} onInfo={() => setDetailsOpen(true)} />}</View>
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={{ flex: 1 }} onLayout={event => { const next = event.nativeEvent.layout; setBodySize(previous => previous.width === next.width && previous.height === next.height ? previous : { width: next.width, height: next.height }); }}>
-        {!loaded || !ready ? <TradeSkeleton /> : <ScrollView ref={mainScroll} scrollEnabled={!landscape && !fullScreen} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={event => {
+      <View style={{ flex: 1, paddingBottom: bottomSpace }} onLayout={event => { const next = event.nativeEvent.layout; setBodySize(previous => previous.width === next.width && previous.height === next.height ? previous : { width: next.width, height: next.height }); }}>
+        {!loaded || !ready ? <TradeSkeleton /> : <ScrollView ref={mainScroll} style={{ flex: 1, minHeight: 0 }} scrollEnabled={!landscape && !fullScreen} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={false} showsVerticalScrollIndicator={false} scrollEventThrottle={32} onScroll={event => {
           const next = event.nativeEvent.contentOffset.y;
           if (next > scrollOffset.current + 6) tradeChrome.hide(); else if (next < scrollOffset.current - 6) tradeChrome.reveal();
           scrollOffset.current = next;
-        }} contentContainerStyle={{ width: '100%', maxWidth: fullScreen ? undefined : 1600, alignSelf: 'center', flexDirection: landscape || fullScreen ? 'row' : 'column', height: landscape || fullScreen ? paneHeight : undefined, paddingTop: fullScreen ? 0 : 8, paddingBottom: landscape || fullScreen ? 0 : bottomSpace + 16 }}>
+        }} contentContainerStyle={{ width: '100%', maxWidth: fullScreen ? undefined : 1600, alignSelf: 'center', flexDirection: landscape || fullScreen ? 'row' : 'column', height: landscape || fullScreen ? paneHeight : undefined, paddingTop: fullScreen ? 0 : 8, paddingBottom: landscape || fullScreen ? 0 : 16 }}>
           <View style={{ width: fullScreen ? '100%' : landscape ? layout.chartWidth : '100%', height: landscape || fullScreen ? '100%' : undefined }}>
             <View style={{ display: landscape || fullScreen ? 'none' : 'flex', gap: 16 }}>{!landscape && !fullScreen && marketHeader}</View>
             <TradeChartCard style={landscape || fullScreen ? { flex: 1, marginHorizontal: fullScreen ? 0 : 8, padding: fullScreen ? 8 : 12, borderRadius: fullScreen ? 0 : 28 } : undefined}>
