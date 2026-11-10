@@ -2,11 +2,11 @@
 
 The current release target is **Android only**. Android testers receive a standalone APK install link; Google Play distribution uses a production build. Apple Developer membership and Apple sign-in are not required for this Android release. The optional iPhone/TestFlight instructions below are for a future iOS release.
 
-**Current source status — 10 November 2026:** chart loading/inspection/browser scrolling and Trade navigation clearance fixes extend `f7288c3`; **Trade UI: Rotate 1** remains the marker. The earlier [preview APK](https://expo.dev/accounts/natananse/projects/pipwise/builds/7cb6a82c-1228-47cd-a6b9-4fcb3eaae214) is finished as **1.0.0 / code 8**; the earlier [production AAB](https://expo.dev/accounts/natananse/projects/pipwise/builds/ea94cdee-66de-40a1-a4d3-15963e51fcb3) is finished as **1.0.0 / code 9**. Those artifacts pass their recorded static checks but do not include the new fixes. See [FINAL_RELEASE_STATUS.md](FINAL_RELEASE_STATUS.md) for the latest build/acceptance evidence and service prerequisites, and [TRADING_ROTATION.md](TRADING_ROTATION.md) for the phone checklist. The dated builds below are historical.
+**Current release — 10 November 2026:** the [standalone preview APK](https://expo.dev/artifacts/eas/SiUgkTm_wLmFtk8UiLlSHfjqQpph_-J_Mclhy3VDofg.apk) is finished as **1.0.0 / code 10** and the [production AAB](https://expo.dev/artifacts/eas/6uYDi2HwfOdQiqdsDUXiJ8AE6PngqpC96LSkNZ1JAdI.aab) as **1.0.0 / code 11**. Both contain the latest chart/navigation fixes and pass their recorded static checks. The scoped database, compatible beta API/email deployment and approved nightly retention schedule are configured. **Trade UI: Rotate 1** remains the marker; confirm native build 10 on the phone. See [FINAL_RELEASE_STATUS.md](FINAL_RELEASE_STATUS.md) for evidence and remaining physical-device/account-flow acceptance. APK 8/AAB 9 and the dated builds below are historical. Nothing has been submitted to Play.
 
 These builds contain the JavaScript bundle and run without your computer, Metro, or port 8081. Development onboarding previews are disabled in both release profiles.
 
-Complete [the manual least-privilege rollout](DATA_LAYER_LEAST_PRIVILEGE.md) before deploying this source. All mobile profiles use the public-only EAS `production` environment; hosted server credentials stay in `preview`. Historical APK build 5 lacks the new live-session header; use a current rebuilt APK after the matching backend/database setup.
+The [least-privilege rollout](DATA_LAYER_VERIFICATION_2026_11_10.md) completed on 10 November; do not rerun its bootstrap against production. Use the [operator guide](DATA_LAYER_LEAST_PRIVILEGE.md) for future changes. All mobile profiles use the public-only EAS `production` environment; hosted server credentials stay in `preview`. Historical APK build 5 lacks the new live-session header; use APK 10 for current acceptance.
 
 Browser beta: **https://pipwise--beta.expo.app**. Local source changes do not update this website or an existing APK. Deploy the web export and create new native builds when preparing a release.
 
@@ -27,6 +27,8 @@ pnpm dlx eas-cli@latest init
 Keep the Android package and iOS bundle identifier `io.pipwise.app` stable for future updates. EAS cloud builds regenerate the ignored native folders from app.json and use the configured signing credentials.
 
 ## 2. Configure the existing Neon backend
+
+The current release is already configured; the following steps are a maintenance reference. Preserve the completed role setup and recovery branch rather than recreating them.
 
 The application uses **Neon Managed Better Auth**, not the legacy Supabase auth files. Confirm the intended project and branch before changing settings; `.neon` records the current link. Do not create a replacement project or run the old Supabase migrations against Neon.
 
@@ -85,10 +87,10 @@ Export the website, then deploy it to the existing beta alias using the intended
 
 ```bash
 pnpm exec expo export --platform web
-pnpm dlx eas-cli@latest deploy --alias beta --environment preview
+EXPO_NO_DOTENV=1 pnpm dlx eas-cli@latest deploy --alias beta --environment preview
 ```
 
-This updates the beta website as well as the return page. Confirm that the deployed `/native-auth.html` serves the actual static return page over HTTPS, rather than a missing page or the application's ordinary route fallback. Trust its origin in the same Neon branch used by the app:
+This updates the beta website as well as the return page. `EXPO_NO_DOTENV=1` is required for deployment: the hosting CLI otherwise merges local operator secrets into its immutable worker environment. Only the reviewed remote `preview` server settings should enter it. Use a project-relative export directory if specifying `--export-dir`. Confirm that the deployed `/native-auth.html` serves the actual static return page over HTTPS, rather than a missing page or the application's ordinary route fallback. Trust its origin in the same Neon branch used by the app:
 
 ```bash
 neon neon-auth domain add https://pipwise--beta.expo.app

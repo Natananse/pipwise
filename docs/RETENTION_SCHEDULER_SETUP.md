@@ -1,18 +1,32 @@
-# Activate the PipWise retention scheduler
+# PipWise retention scheduler
 
-The nightly workflow is in [.github/workflows/data-retention.yml](../.github/workflows/data-retention.yml). **Last operational check, 9 November 2026: it exists on the default branch and scheduled runs start, but all three observed runs failed. Successful recurring cleanup is not established.** The 10 November source work also prepares an independent native Neon scheduler in [`neon.retention.ts`](../neon.retention.ts); it has not been deployed or verified against a live service by these source checks. Choose one monitored scheduler using the handoff below. Complete the [manual database-role rollout](DATA_LAYER_LEAST_PRIVILEGE.md) and branch tests before using the scoped job credential. These instructions do not record a secret update, deployment, successful cleanup or production SQL cutover.
+**Configured and enabled on 10 November 2026.** After the [verified production role rollout](DATA_LAYER_VERIFICATION_2026_11_10.md), the owner explicitly approved nightly deletion of feedback older than 12 calendar months. The native Neon trigger is the selected recurring scheduler. GitHub Actions is a manual fallback; its cron was removed from `main` in [commit `aac7677`](https://github.com/Natananse/pipwise/commit/aac7677b8d417202ec14bcf7d095bf21eab7df01).
 
-## Observed Actions history — 9 November 2026
+| Setting | Verified value |
+| --- | --- |
+| Function project / branch | `steep-hill-28178125` / `br-snowy-cake-b96dtgbu`, Frankfurt |
+| Function / active deployment | `retention` / **2**, completed `2026-11-10T09:10:38.327231Z` |
+| Trigger | `trigger-e1fd86d2-1bc3-4ab8-988b-280ab6600f04`, name `pipwise-feedback-retention` |
+| Route / enabled / cron | `/scheduled` / **true** / `17 1 * * *` |
+| Next run | **11 November 2026, 04:17 Africa/Addis_Ababa** / `01:17Z` |
+| Database identity | Production `retention_job`; both injected DB defaults explicitly replaced with that scoped login |
 
-Connected GitHub repository metadata reports default branch `main` at `331c1aa93f967d485c1c7f85e55892285bdcfae9`. The remote workflow exactly matches the local file (Git blob SHA `4180e87ed99f9761c7c14985c4556fcf05d26472`). The repository runs response returned `total_count: 3`, all for this retention workflow:
+The deployed count-only request returned **eligible: 0**. Missing/wrong check secrets and public scheduled calls, including a forged native trigger header, returned **401**. A genuine separate **count-only** Neon tick succeeded at **12:09 Addis on 10 November**; it had no usable database credentials or deletion path. Its temporary function and trigger were deleted and verified absent at **12:09:36**. That proof establishes scheduled delivery and the protected count request, not a scheduled purge. **The first actual nightly deletion run has not occurred yet; no production feedback was deleted during this setup.** Monitor the next run as described below.
+
+The ignored mode-0600 `.env.retention` now contains the scoped connection, private count-check secret, native function origin and `PIPWISE_RETENTION_SCHEDULE_ENABLED=1`. Keep values private. The app's London project remains the maintained database/Auth project; it is not the Functions deployment target.
+
+## Historical Actions failures — 7–10 November 2026
+
+Before the handoff, the final repository run query returned four completed failures and **no active runs**. After the change, a remote reread confirmed the manual-only workflow blob `4b3fdbe1a4c377289779e93d47c0bf0cef24070c`, matching local source:
 
 | Run | Event / conclusion | Created, Africa/Addis_Ababa |
 | --- | --- | --- |
+| [42782323763](https://github.com/Natananse/pipwise/actions/runs/42782323763) | schedule / failure | 10 November 2026, 11:23:58 |
 | [42582423253](https://github.com/Natananse/pipwise/actions/runs/42582423253) | schedule / failure | 9 November 2026, 10:56:00 |
 | [42458200197](https://github.com/Natananse/pipwise/actions/runs/42458200197) | schedule / failure | 8 November 2026, 10:17:46 |
 | [42349846441](https://github.com/Natananse/pipwise/actions/runs/42349846441) | schedule / failure | 7 November 2026, 10:06:15 |
 
-No successful scheduled run or manual dry run appears in that returned history. These timestamps are run-creation times, not proof the requested 04:17 local schedule ran on time. In the latest [job 129044100658](https://github.com/Natananse/pipwise/actions/runs/42582423253/job/129044100658), checkout, Node 24.18.0, pnpm 11.20.0 and locked dependency installation succeeded; step 7, **Delete feedback eligible under the retention policy**, failed. The manual preview step was skipped as expected for a scheduled run. Step metadata alone does not identify whether the failure is a credential, permission or application error.
+No successful GitHub cleanup appears in that history. These are creation times, not proof the old cron ran on time. The separately inspected **9 November** [job 129044100658](https://github.com/Natananse/pipwise/actions/runs/42582423253/job/129044100658) completed checkout/runtime/install and failed at the cleanup step; its manual preview step was skipped.
 
 A targeted, credential-free log check isolated this application-generated message at **10:56:59 Africa/Addis_Ababa**:
 
@@ -20,22 +34,19 @@ A targeted, credential-free log check isolated this application-generated messag
 Feedback retention cleanup failed. Set RETENTION_JOB_DATABASE_URL with the retention_job database credential.
 ```
 
-This is the missing/blank configuration guard in `scripts/database-config.mjs`, reached before database client creation or queries. The scheduled process received no usable dedicated connection value; the message does not distinguish an absent GitHub secret from an empty or unavailable one. Complete the role/branch validation first, then privately add/correct the repository Actions secret **RETENTION_JOB_DATABASE_URL** for the intended **retention_job** login, following step 3 below. Never substitute the owner or migrator URL. The raw job log and environment payload were not reproduced, and no rerun was requested.
+This was the missing/blank configuration guard in `scripts/database-config.mjs`, before client creation or queries. No GitHub secret was copied or rerun requested during the handoff. The native scheduler now uses the separately verified scoped credential; do not substitute owner or migrator credentials in either path.
 
 The existing repository is [Natananse/pipwise](https://github.com/Natananse/pipwise), public, with default branch `main` (verified through the connected GitHub repository metadata). Standard GitHub-hosted Actions runners are free for public repositories. [GitHub billing guidance](https://docs.github.com/en/actions/concepts/billing-and-usage).
 
-The workflow runs `scripts/purge-retained-data.mjs --execute` at 01:17 UTC / 04:17 Africa/Addis_Ababa each day. Manual runs default to a dry run; setting the manual **execute** input to true authorizes the purge. The updated script uses only private `RETENTION_JOB_DATABASE_URL`, authenticated as `retention_job`, and reports aggregate counts rather than credentials or feedback content. It does not fall back to `DATABASE_URL` or the migrator credential. The job can read the feedback cutoff column and delete rows older than the 12-month cutoff; it cannot read message/user columns or other tables. See [FEEDBACK_RETENTION.md](FEEDBACK_RETENTION.md) for the deletion cutoff and script behavior.
+The checked-in workflow now has **no cron**. Manual runs default to a count-only preview; **execute=true** authorizes that manual purge. The script uses only `RETENTION_JOB_DATABASE_URL` as `retention_job` and returns aggregate counts. It cannot read feedback message/user columns or other tables. See [FEEDBACK_RETENTION.md](FEEDBACK_RETENTION.md).
 
-## GitHub Actions activation
+## Manual GitHub fallback
 
-1. Review the maintenance script, tests, workflow, and manual least-privilege SQL with the release changes. Test and apply the SQL through the owner-run process; the source implementation has not executed it. The workflow is already on `main`; ensure its referenced script/helper/package lockfile and any approved fixes are there too.
-2. Open the repository's **Settings > Actions > General**. Enable GitHub Actions and allow the official `actions/checkout`, `actions/setup-node` and `pnpm/action-setup` actions used by this workflow. Administrative Actions settings were not verified because local `gh` is not authenticated and the connector does not expose that endpoint.
-3. First run the [local count-only preview](FEEDBACK_RETENTION.md) against the verified intended database and confirm the count privately. The existing GitHub schedule executes automatically once its secret works, so adding it is an activation step; perform that step during a monitored window. Open **Settings > Secrets and variables > Actions > New repository secret**. Add **`RETENTION_JOB_DATABASE_URL`** containing the intended production-branch pooled connection for the new **`retention_job`** role. Use the same database/branch as the maintained hosting server but a different scoped login. Set its password privately as described in the role-rollout guide. Do not copy the owner or `migrator` connection. Never paste a value into source, a workflow literal, an issue, a log or this document. Retire any old broad job `DATABASE_URL` secret after the scoped path is verified. [GitHub secret instructions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).
-4. Open **Actions > PipWise data retention > Run workflow** on `main`. Leave **execute=false** for the first run. Verify it succeeds and the eligible count matches expectations.
-5. Review the eligible records privately if the count is unexpected. Run again with **execute=true** only when the intended database/cutoff is confirmed. Scheduled runs execute the purge automatically after the workflow lands on `main` and required settings/secret are available.
-6. Verify the first scheduled run and retain its run URL/status as operational evidence. Enable workflow failure notifications and investigate failures promptly. Keep the secret current when rotating database credentials.
+The role rollout is already applied; do not rerun bootstrap. To use the fallback, privately configure only the repository Actions secret `RETENTION_JOB_DATABASE_URL` with the maintained `retention_job` connection, then run **PipWise data retention** on `main` with **execute=false**. Confirm the count before an intentionally authorized **execute=true** run. Never use an owner or migrator URL. Adding this secret alone does not restore recurring execution because the workflow has no cron. A future recurring handoff requires a reviewed cron change and the native-scheduler stop/drain procedure below. [GitHub secret instructions](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets).
 
-## Native Neon alternative: deploy disabled first
+## Native Neon maintenance: deploy disabled first
+
+The current setup is complete. These steps are for a new deployment, credential rotation or recovery; preserve the existing private files and verified IDs rather than recreating the project or roles.
 
 [`src/functions/feedbackRetention.ts`](../src/functions/feedbackRetention.ts) provides a bounded, count-only `POST /dry-run` and a native-trigger-only `POST /scheduled`. Both use only `RETENTION_JOB_DATABASE_URL` as `retention_job` and the existing 12-calendar-month cutoff. The trigger handler validates the platform envelope and exact trigger name with the installed `@neon/functions/triggers` parser. Its trust boundary is Neon's native edge, which strips externally supplied `X-Neon-*` headers; a copied invocation ID is not a secret or independent authorization. Keep this route on the native function host. [Neon trigger authentication](https://neon.com/docs/compute/functions/triggers/overview#confirming-a-request-came-from-neon).
 
@@ -78,13 +89,15 @@ The workflow runs `scripts/purge-retained-data.mjs --execute` at 01:17 UTC / 04:
 
 ## Use one active scheduler
 
-For a handoff to Neon, keep its trigger disabled while validating deployment and the count-only request. Disable **PipWise data retention** in GitHub Actions, confirm it is disabled and all active runs have finished, then enable the verified native schedule. Observe its first scheduled success and retain both the handoff time and monitoring owner. The checked-in GitHub workflow remains available as a fallback; source presence is separate from its enabled state.
+The completed handoff removed GitHub's cron and verified all old runs complete before enabling the native nightly trigger. For a future handoff to Neon, keep its trigger disabled until counts/authentication are verified and the previous scheduler is stopped and drained. Source presence is separate from enabled state.
 
-For a handoff back to GitHub, set `PIPWISE_RETENTION_SCHEDULE_ENABLED=0` and redeploy the native policy, then confirm the trigger is disabled and pending/in-flight deliveries have drained before enabling GitHub. The immediate operational stop is `neon triggers disable '<trigger-id>' --project-id '<relay-project-id>' --branch '<relay-branch-id>'`; reconcile the private flag to `0` before any later deployment. A disabled trigger can still have an already queued delivery, so inspect activity before changing database permissions or credentials. Complete the local dry-run and monitored GitHub activation above. Do not leave both schedules enabled; keep the current owner and scheduler choice in the release record.
+For a handoff back to recurring GitHub execution, set `PIPWISE_RETENTION_SCHEDULE_ENABLED=0`, redeploy the native policy, and confirm pending/in-flight deliveries have drained before restoring a reviewed GitHub cron. The immediate operational stop is `neon triggers disable 'trigger-e1fd86d2-1bc3-4ab8-988b-280ab6600f04' --project-id 'steep-hill-28178125' --branch 'br-snowy-cake-b96dtgbu'`; reconcile the private flag to `0` before later deployment. A queued delivery may still fire after disabling. Keep only one recurring scheduler active.
 
 ## Scheduling limitations to monitor
 
-GitHub schedules run from the default branch and can be delayed or occasionally dropped under load. Public-repository schedules are disabled after 60 days without repository activity. Check the Actions page regularly, re-enable disabled workflows and perform a manual catch-up run when needed. Do not claim an operational nightly retention guarantee until activation and monitoring are in place. The server's opportunistic cleanup on valid feedback submissions provides another cleanup opportunity; it does not replace this schedule. [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+Inspect `neon logs query --project-id steep-hill-28178125 --branch br-snowy-cake-b96dtgbu --source function --service-name neon-function/retention --since 24h --body-contains feedback-retention` after the first nightly run. Require `ok:true`, `mode:execute`, aggregate `removed` and an invocation ID; retain the result and investigate failures. The count-only scheduled proof must not be recorded as a purge. The server's opportunistic cleanup on valid feedback submissions provides another opportunity, not a replacement for monitoring.
+
+If GitHub cron is restored later, its schedules can be delayed/dropped and public-repository schedules can be disabled after inactivity. [GitHub schedule behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
 
 Deleting expired rows at a nightly boundary can trail their exact cutoff by one run interval, and a missed run can extend that delay. The public policy must describe the actual operational retention/deletion window rather than promising a stronger deadline than the operator can meet.
 
